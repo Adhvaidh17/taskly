@@ -1,0 +1,160 @@
+// taskly_mobile/lib/providers/chat_provider.dart
+
+// 1) In _reloadMessages(channelId), REPLACE:
+//   unawaited(_syncLocalMediaForChannel(channelId));
+// WITH:
+unawaited(_checkOwnedMediaAvailabilityForChannel(channelId));
+
+// This is the key cost/memory fix. Opening a chat must NOT download recipient
+// media. It only performs cheap local-file existence checks for attachments
+// SENT BY THIS USER, so deleting the sender source can still be detected.
+
+Future<void> _checkOwnedMediaAvailabilityForChannel(int channelId) async {
+  final profileId = currentProfileId ?? await backend.profileId();
+  final sourceDeviceId = await backend.sourceDeviceId();
+  final current = List<MessageItem>.from(messages[channelId] ?? const []);
+
+  // _reloadMessages currently loads 80 rows. Check every loaded attachment that
+  // belongs to me; sentByMe=true must NEVER re-download from cloud.
+  for (final message in current) {
+    if (message.id <= 0 ||
+        !message.hasAttachment ||
+        !message.isMine(profileId) ||
+        message.attachmentSourceDeviceId != sourceDeviceId ||
+        message.isAttachmentUnavailable) {
+      continue;
+    }
+    await ensureMessageLocal(message);
+  }
+}
+
+// 2) At the TOP of ensureMessageLocal(MessageItem message), add:
+if (message.isAttachmentUnavailable) {
+  unavailableAttachmentIds.add(message.id);
+  localAttachmentPaths.remove(message.id);
+  notifyListeners();
+  return null;
+}
+
+// 3) REPLACE _syncOneMedia(...) with this version.
+Future<void> _syncOneMedia(MessageItem message, int profileId) async {
+  if (message.id <= 0 || !message.hasAttachment) return;
+  final currentDeviceId = await backend.sourceDeviceId();
+
+  if (message.isAttachmentUnavailable) {
+    final oldPath = localAttachmentPaths.remove(message.id);
+    unavailableAttachmentIds.add(message.id);
+    // Never delete the sender's original source file. Only received-media cache
+    // is disposable here.
+    if (oldPath != null &&
+        message.attachmentSourceDeviceId != currentDeviceId) {
+      try {
+        final file = File(oldPath);
+        if (await file.exists()) await file.delete();
+      } catch (_) {}
+    }
+    notifyListeners();
+    return;
+  }
+
+  // A file can be deleted outside Taskly while this process is still alive.
+  // Do not let an old in-memory path prevent a fresh existence check.
+  final rememberedPath = localAttachmentPaths[message.id];
+  if (rememberedPath != null) {
+    if (await File(rememberedPath).exists()) return;
+    localAttachmentPaths.remove(message.id);
+  }
+
+  if (unavailableAttachmentIds.contains(message.id) ||
+      downloadingAttachmentIds.contains(message.id)) {
+    return;
+  }
+
+  downloadingAttachmentIds.add(message.id);
+  notifyListeners();
+  try {
+    final sentBySourceDevice = message.isMine(profileId) &&
+        message.attachmentSourceDeviceId != null &&
+        message.attachmentSourceDeviceId == currentDeviceId;
+    final resolved = await media.ensureMessageLocal(
+      message: message,
+      backend: backend,
+      sentByMe: sentBySourceDevice,
+    );
+
+    if (resolved.path != null) {
+      localAttachmentPaths[message.id] = resolved.path!;
+      unavailableAttachmentIds.remove(message.id);
+    } else if (resolved.unavailable) {
+      localAttachmentPaths.remove(message.id);
+      unavailableAttachmentIds.add(message.id);
+
+      // Recipient/secondary-device download failure must NOT delete everybody's
+      // copy. Only the originating sender device is allowed to turn source-device loss into a global tombstone.
+      if (sentBySourceDevice && !message.isAttachmentUnavailable) {
+        try {
+          await backend.markMessageAttachmentUnavailable(message.id);
+          await _reloadMessage(message.channelId, message.id);
+        } catch (exception) {
+          debugPrint(
+            'TASKLY_MEDIA_MARK_UNAVAILABLE_ERROR messageId=${message.id} error=$exception',
+          );
+        }
+      }
+    }
+  } finally {
+    downloadingAttachmentIds.remove(message.id);
+    notifyListeners();
+  }
+}
+
+// 4) Add this helper and call it immediately after every MessageItem.fromJson
+// in _reloadMessage. Current V40 RPC already returns attachment_bucket, and V51
+// uses attachment_bucket='unavailable@<sourceDeviceId>' as a compatibility sentinel.
+Future<void> _applyAttachmentAvailability(MessageItem item) async {
+  if (!item.isAttachmentUnavailable) return;
+  final oldPath = localAttachmentPaths.remove(item.id);
+  unavailableAttachmentIds.add(item.id);
+
+  final currentDeviceId = await backend.sourceDeviceId();
+  // Delete received/secondary-device cache, but never the original source path
+  // owned by the originating device.
+  if (oldPath != null && item.attachmentSourceDeviceId != currentDeviceId) {
+    try {
+      final file = File(oldPath);
+      if (await file.exists()) await file.delete();
+    } catch (_) {}
+  }
+}
+
+// In _reloadMessage(...):
+// final item = MessageItem.fromJson(row, currentProfileId: profileId);
+// unawaited(_applyAttachmentAvailability(item));
+// _upsertMessage(channelId, item);
+//
+// ALSO REMOVE the old block at the bottom of _reloadMessage:
+//   if (item.hasAttachment) {
+//     unawaited(_syncOneMedia(item, profileId));
+//   }
+// Realtime arrival of someone else's image must not auto-download it.
+
+// 5) REPLACE openMessageAttachment with this lazy version:
+Future<void> openMessageAttachment(MessageItem message) async {
+  final profileId = currentProfileId ?? await backend.profileId();
+  if (message.isAttachmentUnavailable ||
+      unavailableAttachmentIds.contains(message.id)) {
+    throw FileSystemException(message.attachmentUnavailableText(profileId));
+  }
+
+  final path = await ensureMessageLocal(message); // network happens ONLY here
+  if (path == null) {
+    throw FileSystemException(message.attachmentUnavailableText(profileId));
+  }
+  await media.openFile(
+    path,
+    mimeType: message.attachmentMimeType ?? 'application/octet-stream',
+  );
+}
+
+// 6) DELETE the old _syncLocalMediaForChannel method. It downloaded up to 24
+// newest image/video messages in batches of 3 and is no longer wanted.

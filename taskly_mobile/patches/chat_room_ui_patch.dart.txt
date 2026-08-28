@@ -1,0 +1,30 @@
+// taskly_mobile/lib/screens/chat_room_screen.dart
+// Add import:
+import '../widgets/unavailable_attachment_card.dart';
+
+// In the attachment/image bubble builder, BEFORE any Image.file/Image.network
+// or file-card code, add this first branch:
+final attachmentUnavailable =
+    message.isAttachmentUnavailable ||
+    chatProvider.unavailableAttachmentIds.contains(message.id);
+
+if (attachmentUnavailable) {
+  return UnavailableAttachmentCard(
+    message: message,
+    currentProfileId: chatProvider.currentProfileId ?? 0,
+  );
+}
+
+// Keep your CURRENT attachment/image card dimensions and buttons. Its tap must
+// call ONLY this; do not preload the full image in build():
+onTap: () async {
+  try {
+    await chatProvider.openMessageAttachment(message);
+  } on FileSystemException {
+    if (context.mounted) setState(() {});
+  }
+},
+
+// Do not use Image.network with a permanent/signed cloud URL in the chat list.
+// The message list should render metadata/local sender preview only. Full bytes
+// are fetched by ensureMessageLocal() only after tap.

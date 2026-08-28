@@ -1,0 +1,8 @@
+list of folder strucutre:
+
+taskly_flutter_supabase/supabase
+taskly_flutter_supabase/taskly_mobile/config
+taskly_flutter_supabase/taskly_mobile/android
+taskly_flutter_supabase/taskly_mobile/ios
+taskly_flutter_supabase/taskly_mobile/
+taskly_flutter_supabase/taskly_mobile/pubspec.yaml

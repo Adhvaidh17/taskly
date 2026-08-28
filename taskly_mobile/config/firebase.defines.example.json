@@ -1,0 +1,8 @@
+{
+  "FIREBASE_API_KEY": "replace-with-firebase-web-api-key",
+  "FIREBASE_APP_ID": "replace-with-android-or-ios-app-id",
+  "FIREBASE_MESSAGING_SENDER_ID": "replace-with-project-number",
+  "FIREBASE_PROJECT_ID": "replace-with-firebase-project-id",
+  "FIREBASE_STORAGE_BUCKET": "replace-with-storage-bucket",
+  "FIREBASE_IOS_BUNDLE_ID": "com.example.tasklyMobile"
+}

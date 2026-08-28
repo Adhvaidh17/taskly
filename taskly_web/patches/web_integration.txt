@@ -1,0 +1,56 @@
+TASKLY WEB (Next.js) — INTEGRATION
+
+1. Copy:
+   src/lib/messageMedia.ts
+   src/components/chat/MessageAttachment.tsx
+   src/components/chat/UnavailableAttachmentCard.tsx
+   src/components/chat/MessageAttachment.module.css
+   into the same paths inside taskly_web.
+
+2. In the web message JSON/type, include these existing/new DB fields:
+   attachment_name
+   attachment_mime_type
+   attachment_size_bytes
+   attachment_status
+   attachment_bucket
+
+   Compatibility: the current V40 message RPC already returns attachment_bucket.
+   Treat attachment_bucket starting with 'unavailable' exactly like
+   attachment_status === 'unavailable'. The supplied component already does this.
+
+3. In your existing message bubble renderer, replace the current attachment branch with:
+
+   <MessageAttachment
+     supabase={supabase}
+     message={message}
+     mine={message.sender_profile_id === currentProfileId}
+   />
+
+   IMPORTANT: do not render <img src={cloudUrl}> in the chat list. The component
+   fetches only when clicked, creates URL.createObjectURL(blob), and revokes that
+   URL when the viewer closes/unmounts.
+
+4. In your existing attachment button in the chat composer, keep the SAME button
+   and file picker. On file selected:
+
+   const messageId = await uploadMessageAttachment({
+     supabase,
+     workspaceId: activeConversation.workspace_id,
+     channelId: activeConversation.channel_id,
+     file,
+     replyToMessageId: replyingTo?.id ?? null,
+   })
+
+   Your current realtime message subscription should insert messageId into the
+   chat automatically. If your UI does not subscribe to message INSERT yet,
+   reload that one message after finalize.
+
+5. On realtime UPDATE for a message, merge attachment_status. If it becomes
+   'unavailable', MessageAttachment immediately revokes any active browser blob
+   and switches to:
+     sender:    This image is not available on this device.
+     recipient: This image is not available on <name>'s device.
+
+6. Do NOT make a separate simplified web attachment design. Put this component
+   inside the same message bubble/location used by mobile parity. The wide web
+   shell can use extra horizontal space, but all mobile actions/buttons stay.

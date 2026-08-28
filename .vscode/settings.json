@@ -1,0 +1,5 @@
+{
+  "deno.enablePaths": ["./supabase/functions"],
+  "deno.importMap": "./supabase/functions/deno.json",
+  "dart.flutterSdkPath": "C:\\flutter"
+}

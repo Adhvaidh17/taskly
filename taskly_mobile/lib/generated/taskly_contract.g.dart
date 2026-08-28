@@ -1,0 +1,41 @@
+// Generated from shared/taskly_contract.json. Do not edit.
+abstract final class TasklyContract {
+  static const version = '5.0-web-bridge';
+  static const domain = 'https://taskly.madrascreatives.com';
+  static const desktopMinWidth = 900;
+  static const storageBucket = 'task-files';
+  static const rpcMyGroups = 'taskly_my_groups';
+  static const rpcListConversations = 'taskly_list_conversations';
+  static const rpcConversationMembers = 'taskly_conversation_members';
+  static const rpcGetOrCreateDirectChat = 'taskly_get_or_create_direct_chat';
+  static const rpcEnsureSelfChat = 'taskly_ensure_self_chat';
+  static const rpcChannelMessages = 'taskly_channel_messages_v42';
+  static const rpcOneMessage = 'taskly_message_v42';
+  static const rpcMarkChannelRead = 'taskly_mark_channel_read';
+  static const rpcToggleReaction = 'taskly_toggle_reaction';
+  static const rpcDeleteMessage = 'taskly_delete_message';
+  static const rpcSetConversationPreferences = 'taskly_set_conversation_preferences';
+  static const rpcClearChat = 'taskly_clear_chat';
+  static const rpcDeleteChat = 'taskly_delete_chat';
+  static const rpcGroupSharedContent = 'taskly_group_shared_content_v43';
+  static const rpcGroupAdminState = 'taskly_group_admin_state';
+  static const rpcUpdateGroup = 'taskly_update_group';
+  static const rpcResetJoinCode = 'taskly_reset_join_code';
+  static const rpcSetMemberRole = 'taskly_set_member_role';
+  static const rpcRemoveGroupMember = 'taskly_remove_group_member';
+  static const rpcAddGroupMemberByIdentifier = 'taskly_add_group_member_by_identifier';
+  static const rpcLeaveGroup = 'taskly_leave_group';
+  static const rpcDeleteGroup = 'taskly_delete_group';
+  static const rpcChangeTaskStatus = 'taskly_change_task_status';
+  static const rpcConfirmSuggestion = 'confirm_task_suggestion';
+  static const rpcDismissSuggestion = 'taskly_dismiss_task_suggestion';
+  static const rpcRetryMessageAi = 'taskly_retry_message_ai_v32';
+  static const rpcMarkNotificationRead = 'taskly_mark_notification_read';
+  static const rpcMarkAllNotificationsRead = 'taskly_mark_all_notifications_read';
+  static const rpcRegisterDeviceToken = 'taskly_register_device_token_v40';
+  static const rpcUnregisterDeviceToken = 'taskly_unregister_device_token_v40';
+  static const rpcSetPushEnabled = 'taskly_set_push_enabled_v40';
+  static const rpcDashboard = 'taskly_dashboard';
+  static const functionsAnalyseTaskMessage = 'analyse-task-message';
+  static const functionsRemoveTaskAttachment = 'remove-task-attachment';
+}

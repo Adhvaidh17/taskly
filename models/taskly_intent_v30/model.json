@@ -1,0 +1,33 @@
+{
+  "version": "taskly-intent-charhash-v1",
+  "seed": 20260805,
+  "dimension": 8192,
+  "quantization": "signed_int16",
+  "scale": 0.00025690639117604685,
+  "bias": 0.003082860378194996,
+  "train_examples": 13987,
+  "test_examples": 3071,
+  "auc": 0.999972,
+  "confusion_matrix": [
+    [
+      1531,
+      5
+    ],
+    [
+      3,
+      1532
+    ]
+  ],
+  "features": {
+    "character_ngrams": [
+      3,
+      4,
+      5
+    ],
+    "word_ngrams": [
+      1,
+      2
+    ],
+    "hash": "FNV-1a"
+  }
+}

@@ -1,0 +1,28 @@
+'use client';
+
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+
+let browserClient: SupabaseClient | null = null;
+
+export function getSupabase(): SupabaseClient {
+  if (browserClient) return browserClient;
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+  if (!url || !key) {
+    throw new Error('Taskly Web is missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY.');
+  }
+  browserClient = createClient(url, key, {
+    auth: {
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: true,
+    },
+    realtime: {
+      params: { eventsPerSecond: 20 },
+    },
+    global: {
+      headers: { 'x-client-info': 'taskly-web/1.0' },
+    },
+  });
+  return browserClient;
+}

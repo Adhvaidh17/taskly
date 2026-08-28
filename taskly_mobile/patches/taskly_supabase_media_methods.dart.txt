@@ -1,0 +1,137 @@
+// ADD these imports to taskly_mobile/lib/core/supabase/taskly_supabase.dart
+import 'dart:io';
+
+import '../../models/message_media_ticket.dart';
+import '../../services/device_identity_service.dart';
+import '../files/attachment_policy.dart';
+
+// ADD these methods INSIDE class TasklySupabase.
+
+Future<String> sourceDeviceId() => DeviceIdentityService.id();
+Future<String> sourceDeviceProof() => DeviceIdentityService.proof();
+
+Future<Map<String, dynamic>> _invokeMessageMedia(
+  Map<String, dynamic> body,
+) async {
+  final response = await client.functions.invoke(
+    'message-media',
+    body: body,
+  );
+  final raw = response.data;
+  if (raw is! Map) {
+    throw StateError('Invalid response from message-media.');
+  }
+  final data = Map<String, dynamic>.from(raw);
+  final remoteError = data['error']?.toString().trim();
+  if (remoteError != null && remoteError.isNotEmpty) {
+    throw StateError(remoteError);
+  }
+  return data;
+}
+
+// REPLACE your current uploadMessageAttachment(...) implementation with this.
+// Keep its public signature unchanged so ChatProvider does not need a rewrite.
+Future<Map<String, dynamic>> uploadMessageAttachment({
+  required int workspaceId,
+  required int channelId,
+  required String filePath,
+  int? replyToMessageId,
+}) async {
+  final file = File(filePath);
+  if (!await file.exists()) {
+    throw const FileSystemException('The selected file is unavailable.');
+  }
+
+  final fileName = file.uri.pathSegments.isEmpty
+      ? 'attachment'
+      : file.uri.pathSegments.last;
+  final mimeType =
+      AttachmentPolicy.mimeType(filePath) ?? 'application/octet-stream';
+  final sizeBytes = await file.length();
+  final deviceId = await sourceDeviceId();
+  final deviceProof = await sourceDeviceProof();
+
+  final prepared = await _invokeMessageMedia({
+    'action': 'prepare-upload',
+    'workspaceId': workspaceId,
+    'channelId': channelId,
+    'replyToMessageId': replyToMessageId,
+    'fileName': fileName,
+    'mimeType': mimeType,
+    'sizeBytes': sizeBytes,
+    'sourceDeviceId': deviceId,
+    'sourceDeviceProof': deviceProof,
+  });
+
+  final uploadId = prepared['uploadId']?.toString();
+  final uploadUrl = prepared['uploadUrl']?.toString();
+  if (uploadId == null || uploadId.isEmpty ||
+      uploadUrl == null || uploadUrl.isEmpty) {
+    throw StateError('Taskly did not return an R2 upload URL.');
+  }
+
+  final http = HttpClient();
+  try {
+    final request = await http.putUrl(Uri.parse(uploadUrl));
+    request.headers.set(HttpHeaders.contentTypeHeader, mimeType);
+    request.contentLength = sizeBytes;
+    await request.addStream(file.openRead());
+    final response = await request.close();
+    await response.drain<void>();
+
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw HttpException('R2 upload failed (${response.statusCode}).');
+    }
+
+    final finalized = await _invokeMessageMedia({
+      'action': 'finalize-upload',
+      'uploadId': uploadId,
+    });
+    final messageId = finalized['messageId'] is num
+        ? (finalized['messageId'] as num).toInt()
+        : int.tryParse('${finalized['messageId'] ?? ''}');
+    if (messageId == null) {
+      throw StateError('Taskly did not create the attachment message.');
+    }
+
+    // Your existing message(messageId) method returns the normalized JSON that
+    // MessageItem.fromJson already expects.
+    final row = await message(messageId);
+    if (row == null) {
+      throw StateError('Attachment message could not be reloaded.');
+    }
+    return row;
+  } catch (_) {
+    try {
+      await _invokeMessageMedia({
+        'action': 'abort-upload',
+        'uploadId': uploadId,
+      });
+    } catch (_) {
+      // Best-effort cleanup; R2 tmp/ lifecycle is the final safety net.
+    }
+    rethrow;
+  } finally {
+    http.close(force: true);
+  }
+}
+
+Future<MessageMediaTicket> messageMediaDownloadTicket(int messageId) async {
+  final data = await _invokeMessageMedia({
+    'action': 'download',
+    'messageId': messageId,
+  });
+  return MessageMediaTicket.fromJson(data);
+}
+
+Future<void> markMessageAttachmentUnavailable(int messageId) async {
+  final deviceId = await sourceDeviceId();
+  final deviceProof = await sourceDeviceProof();
+  await _invokeMessageMedia({
+    'action': 'mark-unavailable',
+    'messageId': messageId,
+    'reason': 'source_device_missing',
+    'sourceDeviceId': deviceId,
+    'sourceDeviceProof': deviceProof,
+  });
+}

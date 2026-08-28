@@ -1,0 +1,171 @@
+{
+  "version": "6.0.0+60",
+  "generated": "2026-08-21",
+  "files": [
+    {
+      "path": "README_TASKLY_V60.md",
+      "bytes": 3161,
+      "sha256": "96338bda4b1cb6cfdead85e2bda86d852d4609a80421d4fc35e24d4853043800"
+    },
+    {
+      "path": "apply_taskly_v60.py",
+      "bytes": 4883,
+      "sha256": "be40c3fa26044638642a53bd7bb868e255b39c6b454448bba5a5729d4b4af8cf"
+    },
+    {
+      "path": "apply_taskly_v60.sh",
+      "bytes": 384,
+      "sha256": "c87c0018eac9f1921bc71444807a86a10db7f81d602dc81ee71daf3f09b1222b"
+    },
+    {
+      "path": "docs/ANDROID_GOOGLE_DRIVE_SETUP.md",
+      "bytes": 921,
+      "sha256": "240629645733a57070fa8268ca2a8b42d5172efc03a2d8acbbe1d5aff2d35e3a"
+    },
+    {
+      "path": "docs/APP_UI_V60_INTEGRATION.md",
+      "bytes": 2401,
+      "sha256": "4cec093b4dc0db2a01c21a9d2a90bf8d6ff2ca3d14d773761cbf97f0cca27fa5"
+    },
+    {
+      "path": "docs/CHAT_PROVIDER_V60_INTEGRATION.md",
+      "bytes": 9195,
+      "sha256": "1cba5239effab1db41be6d7843b476316ded868f58a2e65158ab02361301c70e"
+    },
+    {
+      "path": "docs/LEGACY_MIGRATION_RUNBOOK.md",
+      "bytes": 2233,
+      "sha256": "c2b8f2799c00a2bbac1ca0c67a0890956b3ed30eb0a5bc425c7e1dece88ff7fd"
+    },
+    {
+      "path": "install_taskly_v60_usb.sh",
+      "bytes": 547,
+      "sha256": "41a99318ab71e6ea5dcee091117d28ae7ae492413a65ab42a254291bf2c29259"
+    },
+    {
+      "path": "supabase/functions/analyse-local-task/deno.json",
+      "bytes": 82,
+      "sha256": "0ce472db7d7451098d0c55963f7a1b20a829d6afc4446def5ceec1927bdb6226"
+    },
+    {
+      "path": "supabase/functions/analyse-local-task/index.ts",
+      "bytes": 8091,
+      "sha256": "5439962c4b50c11289bccffc1ac4cb6cc62d37b9d5a515f7f126da6cdc356221"
+    },
+    {
+      "path": "supabase/manual/AFTER_VERIFIED_BACKUP_PURGE_LEGACY_CHATS.sql",
+      "bytes": 1249,
+      "sha256": "ed83f9a596784cc9134c3287305520a9e36fba3825fec7d3ca6091d3ef099d0a"
+    },
+    {
+      "path": "supabase/migrations/20260821153000_taskly_v60_local_chat_transport.sql",
+      "bytes": 10760,
+      "sha256": "2892cd9651b5ca37a6fc5f5a36f6cc938e41f65d1e0797ec34ec2375330612b5"
+    },
+    {
+      "path": "taskly_mobile/lib/backup/backup_key_service.dart",
+      "bytes": 1956,
+      "sha256": "6247fbf820e3c0884d742d89bc2294ae125b9f0f6ff60a88e41f7c6119278ee0"
+    },
+    {
+      "path": "taskly_mobile/lib/backup/chat_backup_service.dart",
+      "bytes": 9818,
+      "sha256": "4211c6ebe834d47ae5bd7d8c6a0a879e8cd56bbe635e3b49968cdf15846dbc95"
+    },
+    {
+      "path": "taskly_mobile/lib/backup/google_drive_backup_service.dart",
+      "bytes": 6088,
+      "sha256": "436be41ed5f98183c7e88d1a7879abefdf3b9926bf8a3c5a4c8a335769a5c464"
+    },
+    {
+      "path": "taskly_mobile/lib/backup/local_transfer_service.dart",
+      "bytes": 3972,
+      "sha256": "1ec77ab130f82f889060bfaec4ac9de515b9f34ca11af484093e3137a29b5e22"
+    },
+    {
+      "path": "taskly_mobile/lib/core/theme/taskly_ai_theme.dart",
+      "bytes": 5135,
+      "sha256": "150a004d6665866ee1849d1622d81582a1354d789b6f7305ebb51c0a63fe6942"
+    },
+    {
+      "path": "taskly_mobile/lib/local_chat/device_crypto_service.dart",
+      "bytes": 5429,
+      "sha256": "469aae9a17accaa3bad662941a00883ba163783c2c2656f7b936c1d0d520085e"
+    },
+    {
+      "path": "taskly_mobile/lib/local_chat/legacy_chat_migration_service.dart",
+      "bytes": 4832,
+      "sha256": "ac402d0c96d43aaef71bfba5313f27708766f55978070f584ea6bf3ade0b936b"
+    },
+    {
+      "path": "taskly_mobile/lib/local_chat/local_ai_task_service.dart",
+      "bytes": 1464,
+      "sha256": "ad17145f131a8bf7097c5c1061a839a0e1bd0f0865690424dcda26bca1bf5539"
+    },
+    {
+      "path": "taskly_mobile/lib/local_chat/local_attachment_store.dart",
+      "bytes": 2385,
+      "sha256": "0a6cdf5bb6371128e19c0da2ac877b08cbb68b59146f064f26d95dd82eb3ef3c"
+    },
+    {
+      "path": "taskly_mobile/lib/local_chat/local_chat_database.dart",
+      "bytes": 21967,
+      "sha256": "f58f2283d8531852d13eac1da1bfe4d11555a596624c9ffdeb8ef1ae5529cc4c"
+    },
+    {
+      "path": "taskly_mobile/lib/local_chat/local_chat_runtime.dart",
+      "bytes": 2104,
+      "sha256": "b534540462e96e9ceb8b20f777f4ccfce1e5289e9475019b5ce068623baf2ee9"
+    },
+    {
+      "path": "taskly_mobile/lib/local_chat/local_chat_transport.dart",
+      "bytes": 17505,
+      "sha256": "1fd62fbe888017ba2c6cf2e41d75657babc7cc7f67cf45ea916694fc27b0b269"
+    },
+    {
+      "path": "taskly_mobile/lib/screens/v60/ai_onboarding_screen.dart",
+      "bytes": 9904,
+      "sha256": "8830452fa72f691a539dce08e5e92f79cb9717cca2492fc4a9d586ee9ac26ca9"
+    },
+    {
+      "path": "taskly_mobile/lib/screens/v60/chat_backup_screen.dart",
+      "bytes": 11654,
+      "sha256": "15bd16413f6c1210cc3d1090a6c17026dbe987bb9b33fb87ad5bc48481ea7667"
+    },
+    {
+      "path": "taskly_mobile/lib/screens/v60/chat_info_screen_v60.dart",
+      "bytes": 18538,
+      "sha256": "48df31b96279c2ee8bda29038583428b1394ef4f8ae81c1a6d7b387e08dd38f6"
+    },
+    {
+      "path": "taskly_mobile/lib/screens/v60/new_chat_sheet_v60.dart",
+      "bytes": 3650,
+      "sha256": "5fd0752c4b4a67f1f1820eb1cba2d72f0f544e7e6f1ef943de4a83953b4907aa"
+    },
+    {
+      "path": "taskly_mobile/lib/screens/v60/post_login_gate_v60.dart",
+      "bytes": 4693,
+      "sha256": "6ce4978b0c5a06d23356c97684dcf6021ef2d83cf48368f14c50dbafd4c7dcbf"
+    },
+    {
+      "path": "taskly_mobile/lib/screens/v60/restore_or_transfer_screen.dart",
+      "bytes": 11806,
+      "sha256": "58cf0d10ac14c1814ef845ac740be02796a98b63e349be159cad1fe356979f5e"
+    },
+    {
+      "path": "taskly_mobile/lib/screens/v60/transfer_chats_screen.dart",
+      "bytes": 5577,
+      "sha256": "a9386d22a35287c90586bac22318c53ab969521c58295354101b286485001d4c"
+    },
+    {
+      "path": "taskly_mobile/lib/widgets/v60/ai_auth_shell.dart",
+      "bytes": 3822,
+      "sha256": "88c1a46e9848158a87b5f4b2043a166ac51e1147ac26b2c71c0dcf3787c66217"
+    },
+    {
+      "path": "taskly_mobile/lib/widgets/v60/ai_gradient_background.dart",
+      "bytes": 4520,
+      "sha256": "6a630703197f8dad991e58625be6c1c64ef749ab669092b5e24078899c6c42d5"
+    }
+  ]
+}

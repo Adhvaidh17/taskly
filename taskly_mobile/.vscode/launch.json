@@ -1,0 +1,14 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Taskly Supabase",
+      "request": "launch",
+      "type": "dart",
+      "toolArgs": [
+        "--dart-define=SUPABASE_URL=https://YOUR_PROJECT.supabase.co",
+        "--dart-define=SUPABASE_PUBLISHABLE_KEY=YOUR_PUBLISHABLE_ANON_KEY"
+      ]
+    }
+  ]
+}

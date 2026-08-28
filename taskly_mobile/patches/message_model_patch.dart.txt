@@ -1,0 +1,56 @@
+// taskly_mobile/lib/models/message.dart
+// Add these fields to MessageItem:
+final String? attachmentStatus;
+final String? attachmentSourceDeviceId;
+final DateTime? attachmentUnavailableAt;
+
+// Add to the MessageItem constructor parameters:
+this.attachmentStatus,
+this.attachmentSourceDeviceId,
+this.attachmentUnavailableAt,
+
+// Add these getters inside MessageItem:
+bool get isAttachmentUnavailable =>
+    attachmentStatus == 'unavailable' ||
+    (attachmentBucket?.startsWith('unavailable') ?? false);
+
+String attachmentUnavailableText(int currentProfileId) {
+  final mime = attachmentMimeType ?? '';
+  final kind = mime.startsWith('image/')
+      ? 'image'
+      : mime.startsWith('video/')
+          ? 'video'
+          : mime.startsWith('audio/')
+              ? 'audio'
+              : 'attachment';
+  if (isMine(currentProfileId)) {
+    return 'This $kind is not available on this device.';
+  }
+  final senderName = sender.name.trim().isEmpty ? 'the sender' : sender.name.trim();
+  return "This $kind is not available on $senderName's device.";
+}
+
+// In MessageItem.fromJson(...), add:
+attachmentSourceDeviceId: json['attachment_source_device_id']?.toString() ??
+    ((json['attachment_bucket']?.toString().startsWith('r2@') ?? false)
+        ? json['attachment_bucket'].toString().substring(3)
+        : (json['attachment_bucket']?.toString().startsWith('unavailable@') ?? false)
+            ? json['attachment_bucket'].toString().substring(12)
+            : null),
+attachmentStatus: json['attachment_status']?.toString() ??
+    ((json['attachment_bucket']?.toString().startsWith('unavailable') ?? false)
+        ? 'unavailable'
+        : null),
+attachmentUnavailableAt: json['attachment_unavailable_at'] == null
+    ? null
+    : DateTime.tryParse(json['attachment_unavailable_at'].toString()),
+
+// IMPORTANT: also copy these three fields in every copyWith/withSuggestion/etc.
+// (status, sourceDeviceId, unavailableAt) in every copyWith/withSuggestion/etc.
+// constructor your MessageItem uses, otherwise a task-suggestion update can
+// accidentally erase the attachment availability state.
+
+// Compatibility note: current taskly_channel_messages_v40 already returns
+// attachment_bucket but not the new V51 status fields. The DB writes the
+// sentinel attachment_bucket='unavailable@<sourceDeviceId>', so this inference makes V51 work
+// immediately without replacing the large existing V40 message RPC.

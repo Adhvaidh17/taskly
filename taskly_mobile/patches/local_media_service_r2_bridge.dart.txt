@@ -1,0 +1,36 @@
+// taskly_mobile/lib/services/local_media_service.dart
+// Your current LocalMediaService should keep its existing sender-side binding,
+// prepareOutgoing(), bindMessage(), openFile(), and cache directory code.
+// ONLY replace the old remote Supabase Storage download branch used when
+// sentByMe == false with the following logic.
+
+// PSEUDO-INTEGRATION using your existing destination File/path:
+final ticket = await backend.messageMediaDownloadTicket(message.id);
+if (!ticket.available || ticket.url == null || ticket.url!.isEmpty) {
+  return const LocalMediaResolve(path: null, unavailable: true);
+}
+
+final request = await HttpClient().getUrl(Uri.parse(ticket.url!));
+final response = await request.close();
+if (response.statusCode == 404 || response.statusCode == 410) {
+  await response.drain<void>();
+  return const LocalMediaResolve(path: null, unavailable: true);
+}
+if (response.statusCode < 200 || response.statusCode >= 300) {
+  await response.drain<void>();
+  throw HttpException(
+    'Attachment download failed (${response.statusCode}).',
+  );
+}
+
+// 'destination' below means the SAME temporary/local cache File your existing
+// LocalMediaService already creates for message.id. Do not create a permanent
+// gallery copy for received media.
+final sink = destination.openWrite();
+await response.pipe(sink); // pipe closes the IOSink when the stream completes.
+return LocalMediaResolve(path: destination.path, unavailable: false);
+
+// IMPORTANT sender rule:
+// If sentByMe == true, DO NOT re-download a missing sender source from R2.
+// A missing sender-bound path must return unavailable:true. ChatProvider then
+// calls markMessageAttachmentUnavailable(), which removes the remote copy too.

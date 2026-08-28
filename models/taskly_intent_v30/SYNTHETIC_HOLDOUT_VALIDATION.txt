@@ -1,0 +1,13 @@
+Taskly intent model synthetic holdout validation
+AUC: 0.999972
+Confusion matrix: [[1531, 5], [3, 1532]]
+
+              precision    recall  f1-score   support
+
+           0     0.9980    0.9967    0.9974      1536
+           1     0.9967    0.9980    0.9974      1535
+
+    accuracy                         0.9974      3071
+   macro avg     0.9974    0.9974    0.9974      3071
+weighted avg     0.9974    0.9974    0.9974      3071
+

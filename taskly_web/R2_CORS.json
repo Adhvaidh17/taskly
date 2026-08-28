@@ -1,0 +1,12 @@
+[
+  {
+    "AllowedOrigins": [
+      "https://YOUR_TASKLY_WEB_DOMAIN",
+      "http://localhost:3000"
+    ],
+    "AllowedMethods": ["GET", "PUT", "HEAD"],
+    "AllowedHeaders": ["Content-Type"],
+    "ExposeHeaders": ["ETag"],
+    "MaxAgeSeconds": 3600
+  }
+]

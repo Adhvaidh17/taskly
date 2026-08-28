@@ -1,0 +1,4 @@
+# taskly_mobile/pubspec.yaml
+# Under dependencies: add this version. 2.5.3 supports Dart >=3.5, matching
+# Taskly's current sdk constraint.
+shared_preferences: ^2.5.3

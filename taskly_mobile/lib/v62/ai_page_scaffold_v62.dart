@@ -2,9 +2,6 @@ import 'package:flutter/material.dart';
 
 import 'ai_universe_shell_v62.dart';
 
-/// Drop-in scaffold for existing Taskly screens so Chats, Tasks, Dashboard,
-/// Settings and detail pages share one visual language without rewriting their
-/// business logic.
 class AiPageScaffoldV62 extends StatelessWidget {
   const AiPageScaffoldV62({
     super.key,
@@ -14,7 +11,7 @@ class AiPageScaffoldV62 extends StatelessWidget {
     this.actions = const [],
     this.bottomNavigationBar,
     this.floatingActionButton,
-    this.intensity = .24,
+    this.intensity = .16,
     this.showStars = false,
   });
 
@@ -30,12 +27,14 @@ class AiPageScaffoldV62 extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.transparent,
-      extendBody: true,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      extendBody: false,
+      resizeToAvoidBottomInset: true,
       body: AiUniverseShellV62(
         intensity: intensity,
         showStars: showStars,
         child: SafeArea(
+          bottom: true,
           child: Column(
             children: [
               if (title != null || leading != null || actions.isNotEmpty)

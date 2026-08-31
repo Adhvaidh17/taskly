@@ -18,7 +18,6 @@ import 'profile_screen.dart';
 import 'incoming_share_sheet.dart';
 import 'task_detail_screen.dart';
 import '../v62/ai_universe_shell_v62.dart';
-import '../v62/taskly_ai_theme_v62.dart';
 import 'tasks_screen.dart';
 
 class ShellScreen extends StatefulWidget {
@@ -77,9 +76,7 @@ class _ShellScreenState extends State<ShellScreen> with WidgetsBindingObserver {
     if (destination == null || !mounted) return;
     if (destination.taskId != null) {
       await Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => TaskDetailScreen(taskId: destination.taskId!),
-        ),
+        MaterialPageRoute(builder: (_) => TaskDetailScreen(taskId: destination.taskId!)),
       );
       return;
     }
@@ -87,13 +84,10 @@ class _ShellScreenState extends State<ShellScreen> with WidgetsBindingObserver {
       final chat = context.read<ChatProvider>();
       if (chat.conversations.isEmpty) await chat.loadConversations();
       if (!mounted) return;
-      final matches = chat.conversations
-          .where((item) => item.channelId == destination.channelId);
+      final matches = chat.conversations.where((item) => item.channelId == destination.channelId);
       if (matches.isNotEmpty) {
         await Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) => ChatRoomScreen(conversation: matches.first),
-          ),
+          MaterialPageRoute(builder: (_) => ChatRoomScreen(conversation: matches.first)),
         );
       }
     }
@@ -119,9 +113,10 @@ class _ShellScreenState extends State<ShellScreen> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
     final notifications = context.watch<NotificationProvider>();
+    final scheme = Theme.of(context).colorScheme;
     return Scaffold(
-      backgroundColor: Colors.transparent,
-      extendBody: true,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      extendBody: false,
       appBar: AppBar(
         title: Row(
           children: [
@@ -129,7 +124,7 @@ class _ShellScreenState extends State<ShellScreen> with WidgetsBindingObserver {
               width: 30,
               height: 30,
               decoration: BoxDecoration(
-                gradient: LinearGradient(colors: [Theme.of(context).colorScheme.primary, Theme.of(context).colorScheme.tertiary]),
+                gradient: LinearGradient(colors: [scheme.primary, scheme.tertiary]),
                 borderRadius: BorderRadius.circular(9),
               ),
               alignment: Alignment.center,
@@ -155,15 +150,15 @@ class _ShellScreenState extends State<ShellScreen> with WidgetsBindingObserver {
         ],
       ),
       body: AiUniverseShellV62(
-        intensity: 0.16,
+        intensity: 0.10,
         showStars: false,
         child: IndexedStack(
           index: _index,
           children: const [
-          ChatsScreen(),
-          TasksScreen(),
-          DashboardScreen(),
-          ProfileScreen(),
+            ChatsScreen(),
+            TasksScreen(),
+            DashboardScreen(),
+            ProfileScreen(),
           ],
         ),
       ),

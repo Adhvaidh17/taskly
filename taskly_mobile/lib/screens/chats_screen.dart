@@ -8,6 +8,7 @@ import '../providers/workspace_provider.dart';
 import '../services/chat_cache_service.dart';
 import '../v62/ai_chat_list_shell_v62.dart';
 import '../v62/new_chat_hub_v62.dart';
+import '../v62/taskly_ai_theme_v62.dart';
 import 'chat_room_screen.dart';
 import 'contacts_screen.dart';
 

@@ -1,34 +1,39 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+
 import '../local_chat/local_chat_runtime.dart';
 import '../providers/chat_provider.dart';
 
-class ChatInfoScreen extends StatefulWidget {
+class ChatInfoScreen extends StatelessWidget {
   const ChatInfoScreen({super.key, required this.channelId});
   final int channelId;
-  @override State<ChatInfoScreen> createState() => _ChatInfoScreenState();
-}
 
-class _ChatInfoScreenState extends State<ChatInfoScreen> {
-  bool _loading = true;
-  String? _error;
-
-  @override void initState() { super.initState(); _load(); }
-
-  Future<void> _load() async {
-    try {
-      // Do not initialize live transport merely to render Chat Info.
-      // ChatProvider owns the backend and local chat state.
-      await context.read<ChatProvider>().loadChatInfo(widget.channelId);
-      if (mounted) setState(() { _loading = false; _error = null; });
-    } catch (error) {
-      if (mounted) setState(() { _loading = false; _error = '$error'; });
-    }
+  @override
+  Widget build(BuildContext context) {
+    final provider = context.read<ChatProvider>();
+    return Scaffold(
+      appBar: AppBar(title: const Text('Chat Info')),
+      body: FutureBuilder<void>(
+        future: _prepareLocalOnly(provider),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState != ConnectionState.done) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (snapshot.hasError) {
+            return Center(child: Padding(padding: const EdgeInsets.all(24), child: Text('${snapshot.error}', textAlign: TextAlign.center)));
+          }
+          return Center(child: Text('Channel $channelId'));
+        },
+      ),
+    );
   }
 
-  @override Widget build(BuildContext context) {
-    if (_loading) return const Scaffold(body: Center(child: CircularProgressIndicator()));
-    if (_error != null) return Scaffold(appBar: AppBar(title: const Text('Chat Info')), body: Center(child: Padding(padding: const EdgeInsets.all(24), child: Column(mainAxisSize: MainAxisSize.min, children: [Text(_error!, textAlign: TextAlign.center), const SizedBox(height: 12), FilledButton.icon(onPressed: () { setState(() => _loading = true); _load(); }, icon: const Icon(Icons.refresh), label: const Text('Retry'))])));
-    return Scaffold(appBar: AppBar(title: const Text('Chat Info')), body: const Center(child: Text('Chat information')));
+  Future<void> _prepareLocalOnly(ChatProvider provider) async {
+    final client = provider.backend.client;
+    final user = client.auth.currentUser;
+    if (user == null) throw StateError('Not signed in');
+    // Open local state without requiring the live transport to be connected.
+    final runtime = LocalChatRuntime.instance;
+    await runtime.initialize(client);
   }
 }

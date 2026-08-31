@@ -19,9 +19,34 @@ class ChatCacheService {
     try {
       final path = await _channel.invokeMethod<String>('cacheRoot');
       if (path == null || path.trim().isEmpty) return null;
-      final dir = Directory(path);
-      if (!await dir.exists()) await dir.create(recursive: true);
-      return dir;
+
+      final canonical = Directory(path);
+      final candidates = <Directory>[
+        canonical,
+        Directory('${canonical.parent.path}${Platform.pathSeparator}.cache'),
+        Directory('${canonical.parent.parent.path}${Platform.pathSeparator}.cache'),
+        Directory('${canonical.parent.parent.parent.path}${Platform.pathSeparator}.cache'),
+      ];
+
+      Directory? fallback;
+      for (final candidate in candidates) {
+        try {
+          if (!await candidate.exists()) continue;
+          fallback ??= candidate;
+          await for (final entity in candidate.list(followLinks: false)) {
+            if (entity is File &&
+                RegExp(r'.+_(conversations|channel_\d+_messages)_v43\.json$')
+                    .hasMatch(entity.uri.pathSegments.last)) {
+              return candidate;
+            }
+          }
+        } catch (_) {
+          // Keep looking through the possible Android media cache locations.
+        }
+      }
+
+      if (!await canonical.exists()) await canonical.create(recursive: true);
+      return fallback ?? canonical;
     } catch (error) {
       debugPrint('TASKLY_CACHE_ROOT_ERROR $error');
       return null;
@@ -35,9 +60,33 @@ class ChatCacheService {
   }
 
   Future<List<Map<String, dynamic>>> readMessages(int channelId) async {
-    final file = await _file('channel_${channelId}_messages_v43.json');
-    if (file == null || !await file.exists()) return const [];
-    return _readList(file);
+    final root = await _root();
+    if (root == null) return const [];
+    final exact = File(
+      '${root.path}${Platform.pathSeparator}${_namespace}_channel_${channelId}_messages_v43.json',
+    );
+    if (await exact.exists()) return _readList(exact);
+
+    // Recovery fallback: if the account namespace changed after reinstall,
+    // find the newest snapshot for this channel instead of returning empty.
+    File? newest;
+    DateTime? newestTime;
+    await for (final entity in root.list(followLinks: false)) {
+      if (entity is! File) continue;
+      if (!RegExp(r'^.+_channel_\d+_messages_v43\.json$')
+          .hasMatch(_fileName(entity))) {
+        continue;
+      }
+      final match = RegExp(r'^.+_channel_(\d+)_messages_v43\.json$')
+          .firstMatch(_fileName(entity));
+      if (match == null || int.tryParse(match.group(1)!) != channelId) continue;
+      final modified = await entity.lastModified();
+      if (newestTime == null || modified.isAfter(newestTime)) {
+        newest = entity;
+        newestTime = modified;
+      }
+    }
+    return newest == null ? const [] : _readList(newest);
   }
 
   Future<void> writeMessages(int channelId, List<Map<String, dynamic>> rows) async {
@@ -72,26 +121,41 @@ class ChatCacheService {
   Future<List<ConversationItem>> readConversations() async {
     final root = await _root();
     if (root == null || !await root.exists()) return const [];
-    File? selected;
-    final exact = File('${root.path}${Platform.pathSeparator}${_namespace}_conversations_v43.json');
-    if (await exact.exists()) {
-      selected = exact;
-    } else {
-      selected = await _newestConversationFile(root);
+    final files = <File>[];
+    await for (final entity in root.list(followLinks: false)) {
+      if (entity is File &&
+          RegExp(r'^.+_conversations_v43\.json$').hasMatch(_fileName(entity))) {
+        files.add(entity);
+      }
     }
-    if (selected == null || !await selected.exists()) return const [];
-    try {
-      final decoded = jsonDecode(await selected.readAsString());
-      if (decoded is! List) return const [];
-      return decoded
-          .whereType<Map>()
-          .map((row) => ConversationItem.fromJson(Map<String, dynamic>.from(row)))
-          .where((item) => item.channelId > 0)
-          .toList(growable: false);
-    } catch (error) {
-      debugPrint('TASKLY_CACHE_READ_CONVERSATIONS_ERROR $error');
-      return const [];
+    if (files.isEmpty) return const [];
+
+    final byChannel = <int, Map<String, dynamic>>{};
+    for (final file in files) {
+      try {
+        final decoded = jsonDecode(await file.readAsString());
+        if (decoded is! List) continue;
+        for (final raw in decoded.whereType<Map>()) {
+          final row = Map<String, dynamic>.from(raw);
+          final channelId = _asInt(row['channel_id']);
+          if (channelId <= 0) continue;
+          final existing = byChannel[channelId];
+          if (existing == null ||
+              _createdAt(row, key: 'last_message_at')
+                  .compareTo(_createdAt(existing, key: 'last_message_at')) >
+                  0) {
+            byChannel[channelId] = row;
+          }
+        }
+      } catch (error) {
+        debugPrint('TASKLY_CACHE_READ_CONVERSATIONS_ERROR $error');
+      }
     }
+
+    return byChannel.values
+        .map(ConversationItem.fromJson)
+        .where((item) => item.channelId > 0)
+        .toList(growable: false);
   }
 
   Future<void> writeConversations(List<ConversationItem> items) async {
@@ -105,48 +169,113 @@ class ChatCacheService {
   })> readRecoveryBundle() async {
     final root = await _root();
     if (root == null || !await root.exists()) {
-      return (namespace: null, conversations: <Map<String, dynamic>>[], messages: <int, List<Map<String, dynamic>>>{});
+      return (
+        namespace: null,
+        conversations: <Map<String, dynamic>>[],
+        messages: <int, List<Map<String, dynamic>>>{},
+      );
     }
+
     final files = <File>[];
     await for (final entity in root.list(followLinks: false)) {
       if (entity is File && entity.path.endsWith('.json')) files.add(entity);
     }
+
     final namespaces = <String>{};
     for (final file in files) {
-      final match = RegExp(r'^(.+)_conversations_v43\.json$').firstMatch(_fileName(file));
+      final match = RegExp(r'^(.+)_conversations_v43\.json$')
+          .firstMatch(_fileName(file));
       if (match != null) namespaces.add(match.group(1)!);
     }
     if (namespaces.isEmpty) {
-      return (namespace: null, conversations: <Map<String, dynamic>>[], messages: <int, List<Map<String, dynamic>>>{});
+      return (
+        namespace: null,
+        conversations: <Map<String, dynamic>>[],
+        messages: <int, List<Map<String, dynamic>>>{},
+      );
     }
+
+    // A reinstall can change the device namespace. Recover every available
+    // v43 namespace and merge duplicate channel/message snapshots safely.
+    final conversationByChannel = <int, Map<String, dynamic>>{};
+    final messagesByChannel = <int, Map<String, Map<String, dynamic>>>{};
     var selectedNamespace = _namespace;
-    if (!namespaces.contains(selectedNamespace)) {
-      final newest = await _newestConversationFile(root);
-      final match = newest == null ? null : RegExp(r'^(.+)_conversations_v43\.json$').firstMatch(_fileName(newest));
-      selectedNamespace = match?.group(1) ?? selectedNamespace;
-    }
-    final prefix = '${selectedNamespace}_';
-    final conversations = <Map<String, dynamic>>[];
-    final messages = <int, List<Map<String, dynamic>>>{};
-    for (final file in files) {
-      final name = _fileName(file);
-      if (!name.startsWith(prefix) || !name.endsWith('.json')) continue;
-      try {
-        final decoded = jsonDecode(await file.readAsString());
-        if (decoded is! List) continue;
-        if (name == '${prefix}conversations_v43.json') {
-          conversations.addAll(decoded.whereType<Map>().map(Map<String, dynamic>.from));
-          continue;
+    var selectedMessageCount = -1;
+
+    for (final namespace in namespaces) {
+      final prefix = '${namespace}_';
+      var namespaceMessageCount = 0;
+      for (final file in files) {
+        final name = _fileName(file);
+        if (!name.startsWith(prefix) || !name.endsWith('.json')) continue;
+        try {
+          final decoded = jsonDecode(await file.readAsString());
+          if (decoded is! List) continue;
+
+          if (name == '${prefix}conversations_v43.json') {
+            for (final raw in decoded.whereType<Map>()) {
+              final row = Map<String, dynamic>.from(raw);
+              final channelId = _asInt(row['channel_id']);
+              if (channelId <= 0) continue;
+              final existing = conversationByChannel[channelId];
+              if (existing == null ||
+                  _createdAt(row, key: 'last_message_at')
+                      .compareTo(_createdAt(existing, key: 'last_message_at')) >
+                      0) {
+                conversationByChannel[channelId] = row;
+              }
+            }
+            continue;
+          }
+
+          final match = RegExp(
+            '^${RegExp.escape(prefix)}channel_(\\d+)_messages_v43\\.json\$',
+          ).firstMatch(name);
+          final channelId = match == null ? null : int.tryParse(match.group(1)!);
+          if (channelId == null || channelId <= 0) continue;
+
+          final target = messagesByChannel.putIfAbsent(
+            channelId,
+            () => <String, Map<String, dynamic>>{},
+          );
+          for (final raw in decoded.whereType<Map>()) {
+            final row = Map<String, dynamic>.from(raw);
+            final id = _asInt(row['id']);
+            final clientId = '${row['client_message_id'] ?? ''}'.trim();
+            final key = id > 0
+                ? 'id:$id'
+                : clientId.isNotEmpty
+                    ? 'client:$clientId'
+                    : 'row:${jsonEncode(row)}';
+            final existing = target[key];
+            if (existing == null ||
+                _createdAt(row).compareTo(_createdAt(existing)) > 0) {
+              target[key] = row;
+            }
+            namespaceMessageCount++;
+          }
+        } catch (error) {
+          debugPrint('TASKLY_CACHE_RECOVERY_READ_ERROR file=$name $error');
         }
-        final match = RegExp('^${RegExp.escape(prefix)}channel_(\\d+)_messages_v43\\.json\$').firstMatch(name);
-        final channelId = match == null ? null : int.tryParse(match.group(1)!);
-        if (channelId == null || channelId <= 0) continue;
-        messages[channelId] = decoded.whereType<Map>().map(Map<String, dynamic>.from).toList();
-      } catch (error) {
-        debugPrint('TASKLY_CACHE_RECOVERY_READ_ERROR file=$name $error');
+      }
+      if (namespaceMessageCount > selectedMessageCount) {
+        selectedMessageCount = namespaceMessageCount;
+        selectedNamespace = namespace;
       }
     }
-    return (namespace: selectedNamespace, conversations: conversations, messages: messages);
+
+    final mergedMessages = <int, List<Map<String, dynamic>>>{};
+    for (final entry in messagesByChannel.entries) {
+      final rows = entry.value.values.toList()
+        ..sort((a, b) => _createdAt(a).compareTo(_createdAt(b)));
+      mergedMessages[entry.key] = rows;
+    }
+
+    return (
+      namespace: selectedNamespace,
+      conversations: conversationByChannel.values.toList(growable: true),
+      messages: mergedMessages,
+    );
   }
 
   Future<({
@@ -154,55 +283,27 @@ class ChatCacheService {
     List<Map<String, dynamic>> conversations,
     Map<int, List<Map<String, dynamic>>> messages,
   })> readRecoveryBundleForProfile(int profileId) async {
-    final root = await _root();
-    if (root == null || !await root.exists()) {
-      return (namespace: null, conversations: <Map<String, dynamic>>[], messages: <int, List<Map<String, dynamic>>>{});
-    }
-    final files = <File>[];
-    await for (final entity in root.list(followLinks: false)) {
-      if (entity is File && entity.path.endsWith('.json')) files.add(entity);
-    }
-    final namespaces = <String>{};
-    for (final file in files) {
-      final match = RegExp(r'^(.+)_conversations_v43\.json$').firstMatch(_fileName(file));
-      if (match != null) namespaces.add(match.group(1)!);
-    }
-    if (namespaces.contains(_namespace)) {
-      namespaces.remove(_namespace);
-      namespaces.add(_namespace);
-    }
-    for (final namespace in namespaces) {
-      final prefix = '${namespace}_';
-      final conversations = <Map<String, dynamic>>[];
-      final messages = <int, List<Map<String, dynamic>>>{};
-      var profileMatch = false;
-      for (final file in files) {
-        final name = _fileName(file);
-        if (!name.startsWith(prefix) || !name.endsWith('.json')) continue;
-        try {
-          final decoded = jsonDecode(await file.readAsString());
-          if (decoded is! List) continue;
-          if (name == '${prefix}conversations_v43.json') {
-            conversations.addAll(decoded.whereType<Map>().map(Map<String, dynamic>.from));
-            continue;
-          }
-          final match = RegExp('^${RegExp.escape(prefix)}channel_(\\d+)_messages_v43\\.json\$').firstMatch(name);
-          final channelId = match == null ? null : int.tryParse(match.group(1)!);
-          if (channelId == null || channelId <= 0) continue;
-          final rows = decoded.whereType<Map>().map(Map<String, dynamic>.from).toList();
-          messages[channelId] = rows;
-          if (rows.any((row) {
-            final sender = row['sender'];
-            final senderId = sender is Map ? sender['id'] : row['sender_profile_id'];
-            return _asInt(senderId) == profileId;
-          })) profileMatch = true;
-        } catch (error) {
-          debugPrint('TASKLY_CACHE_RECOVERY_READ_ERROR file=$name $error');
-        }
+    final bundle = await readRecoveryBundle();
+    final filteredMessages = <int, List<Map<String, dynamic>>>{};
+    for (final entry in bundle.messages.entries) {
+      final rows = entry.value;
+      if (rows.any((row) {
+        final sender = row['sender'];
+        final senderId = sender is Map ? sender['id'] : row['sender_profile_id'];
+        return _asInt(senderId) == profileId;
+      })) {
+        filteredMessages[entry.key] = rows;
       }
-      if (profileMatch) return (namespace: namespace, conversations: conversations, messages: messages);
     }
-    return (namespace: null, conversations: <Map<String, dynamic>>[], messages: <int, List<Map<String, dynamic>>>{});
+    final allowedChannels = filteredMessages.keys.toSet();
+    final filteredConversations = bundle.conversations
+        .where((row) => allowedChannels.contains(_asInt(row['channel_id'])))
+        .toList(growable: false);
+    return (
+      namespace: bundle.namespace,
+      conversations: filteredConversations,
+      messages: filteredMessages,
+    );
   }
 
   Future<({
@@ -215,7 +316,10 @@ class ChatCacheService {
 
   Future<Map<String, dynamic>> readRecoveryFiles() async {
     final bundle = await readLegacyRecoveryBundle();
-    return {'conversations': bundle.conversations, 'messages': {for (final entry in bundle.messages.entries) '${entry.key}': entry.value}};
+    return {
+      'conversations': bundle.conversations,
+      'messages': {for (final entry in bundle.messages.entries) '${entry.key}': entry.value},
+    };
   }
 
   Future<String?> findExistingMedia(String fileName) async {
@@ -300,6 +404,9 @@ class ChatCacheService {
       };
 
   String _fileName(File file) => file.uri.pathSegments.isEmpty ? file.path : file.uri.pathSegments.last;
+
   int _asInt(Object? value) => value is num ? value.toInt() : int.tryParse('$value') ?? 0;
-  String _createdAt(Map<String, dynamic> row) => '${row['created_at'] ?? ''}';
+
+  String _createdAt(Map<String, dynamic> row, {String key = 'created_at'}) =>
+      '${row[key] ?? ''}';
 }

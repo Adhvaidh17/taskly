@@ -85,66 +85,82 @@ class ChatCacheService {
     await _writeJson('conversations_v43.json', items.map(_conversationJson).toList());
   }
 
+  /// Finds the cache namespace that actually contains messages belonging to
+  /// the authenticated profile. This is important on devices that contain
+  /// caches for several Taskly accounts/devices.
+  Future<({
+    String? namespace,
+    List<Map<String, dynamic>> conversations,
+    Map<int, List<Map<String, dynamic>>> messages,
+  })> readRecoveryBundleForProfile(int profileId) async {
+    final root = await _root();
+    if (root == null || !await root.exists()) {
+      return (namespace: null, conversations: <Map<String, dynamic>>[], messages: <int, List<Map<String, dynamic>>>{});
+    }
+
+    final files = <File>[];
+    await for (final entity in root.list(followLinks: false)) {
+      if (entity is File && entity.path.endsWith('.json')) files.add(entity);
+    }
+
+    final namespaces = <String>{};
+    for (final file in files) {
+      final name = _fileName(file);
+      final match = RegExp(r'^(.+)_conversations_v43\.json$').firstMatch(name);
+      if (match != null) namespaces.add(match.group(1)!);
+    }
+    if (namespaces.contains(_namespace)) {
+      namespaces.remove(_namespace);
+      namespaces.add(_namespace);
+    }
+
+    for (final namespace in namespaces) {
+      final prefix = '${namespace}_';
+      final conversations = <Map<String, dynamic>>[];
+      final messages = <int, List<Map<String, dynamic>>>{};
+      var profileMatch = false;
+
+      for (final file in files) {
+        final name = _fileName(file);
+        if (!name.startsWith(prefix) || !name.endsWith('.json')) continue;
+        try {
+          final decoded = jsonDecode(await file.readAsString());
+          if (decoded is! List) continue;
+          if (name == '${prefix}conversations_v43.json') {
+            conversations.addAll(decoded.whereType<Map>().map(Map<String, dynamic>.from));
+            continue;
+          }
+          final match = RegExp('^${RegExp.escape(prefix)}channel_(\\d+)_messages_v43\\.json\$').firstMatch(name);
+          final channelId = match == null ? null : int.tryParse(match.group(1)!);
+          if (channelId == null || channelId <= 0) continue;
+          final rows = decoded.whereType<Map>().map(Map<String, dynamic>.from).toList();
+          messages[channelId] = rows;
+          if (rows.any((row) {
+            final sender = row['sender'];
+            final senderId = sender is Map ? sender['id'] : row['sender_profile_id'];
+            return _asInt(senderId) == profileId;
+          })) {
+            profileMatch = true;
+          }
+        } catch (error) {
+          debugPrint('TASKLY_CACHE_RECOVERY_READ_ERROR file=$name $error');
+        }
+      }
+
+      if (profileMatch) {
+        return (namespace: namespace, conversations: conversations, messages: messages);
+      }
+    }
+
+    return (namespace: null, conversations: <Map<String, dynamic>>[], messages: <int, List<Map<String, dynamic>>>{});
+  }
+
   Future<({
     List<Map<String, dynamic>> conversations,
     Map<int, List<Map<String, dynamic>>> messages,
   })> readLegacyRecoveryBundle() async {
-    final root = await _root();
-    if (root == null || !await root.exists()) {
-      return (conversations: <Map<String, dynamic>>[], messages: <int, List<Map<String, dynamic>>>{});
-    }
-
-    final allFiles = <File>[];
-    await for (final entity in root.list(followLinks: false)) {
-      if (entity is File && entity.path.endsWith('.json')) allFiles.add(entity);
-    }
-
-    final requestedPrefix = '${_namespace}_';
-    var prefix = requestedPrefix;
-    final requested = allFiles.where((file) => _fileName(file).startsWith(requestedPrefix)).toList();
-
-    // If the authenticated namespace is not present, use the newest local
-    // Taskly conversation snapshot on the device. This keeps recovery working
-    // after reinstall/session migration without requiring server chat history.
-    if (requested.isEmpty) {
-      String? newest;
-      DateTime? newestTime;
-      for (final file in allFiles) {
-        final name = _fileName(file);
-        final match = RegExp(r'^(.+)_conversations_v43\.json$').firstMatch(name);
-        if (match == null) continue;
-        final modified = await file.lastModified();
-        if (newestTime == null || modified.isAfter(newestTime)) {
-          newest = match.group(1);
-          newestTime = modified;
-        }
-      }
-      if (newest != null) prefix = '${newest}_';
-    }
-
-    final conversations = <Map<String, dynamic>>[];
-    final messages = <int, List<Map<String, dynamic>>>{};
-
-    for (final entity in allFiles) {
-      final name = _fileName(entity);
-      if (!name.startsWith(prefix) || !name.endsWith('.json')) continue;
-      try {
-        final decoded = jsonDecode(await entity.readAsString());
-        if (decoded is! List) continue;
-        if (name == '${prefix}conversations_v43.json') {
-          conversations.addAll(decoded.whereType<Map>().map(Map<String, dynamic>.from));
-          continue;
-        }
-        final match = RegExp('^${RegExp.escape(prefix)}channel_(\\d+)_messages_v43\\.json\$').firstMatch(name);
-        final channelId = match == null ? null : int.tryParse(match.group(1)!);
-        if (channelId == null || channelId <= 0) continue;
-        messages[channelId] = decoded.whereType<Map>().map(Map<String, dynamic>.from).toList();
-      } catch (error) {
-        debugPrint('TASKLY_CACHE_RECOVERY_READ_ERROR file=$name $error');
-      }
-    }
-
-    return (conversations: conversations, messages: messages);
+    final bundle = await readRecoveryBundleForProfile(0);
+    return (conversations: bundle.conversations, messages: bundle.messages);
   }
 
   Future<Map<String, dynamic>> readRecoveryFiles() async {

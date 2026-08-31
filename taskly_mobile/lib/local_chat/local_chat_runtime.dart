@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'device_crypto_service.dart';
@@ -29,13 +30,23 @@ class LocalChatRuntime {
     attachments = LocalAttachmentStore(user.id);
     crypto = DeviceCryptoService();
 
-    transport = LocalChatTransport(
+    final nextTransport = LocalChatTransport(
       client: client,
       database: database,
       crypto: crypto!,
       attachments: attachments!,
     );
-    await transport!.initialize();
+
+    try {
+      await nextTransport.initialize();
+      transport = nextTransport;
+    } catch (error) {
+      debugPrint('TASKLY_LOCAL_TRANSPORT_INIT $error');
+      try {
+        await nextTransport.dispose();
+      } catch (_) {}
+      transport = null;
+    }
   }
 
   Future<bool> needsRestoreGate(SupabaseClient client) async {
@@ -44,9 +55,6 @@ class LocalChatRuntime {
 
     _authUserId = user.id;
     await database.openForUser(user.id);
-
-    // The restore screen needs the local attachment store and key service
-    // before the live chat transport is initialized.
     attachments ??= LocalAttachmentStore(user.id);
     crypto ??= DeviceCryptoService();
 

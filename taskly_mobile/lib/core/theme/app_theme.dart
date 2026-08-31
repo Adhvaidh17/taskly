@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 @immutable
 class TasklyTheme extends ThemeExtension<TasklyTheme> {
@@ -123,46 +124,53 @@ class AppTheme {
 
   static ThemeData _build(Brightness brightness) {
     final dark = brightness == Brightness.dark;
+
+    // Light is intentionally warm/airy and surface-led. Dark is intentionally
+    // deep/navy and panel-led; neither mode reuses the other's black/white UI.
+    final canvas = dark ? const Color(0xFF080A11) : const Color(0xFFF5F7FC);
+    final panel = dark ? const Color(0xFF151923) : const Color(0xFFFFFFFF);
+    final panelStrong = dark ? const Color(0xFF202532) : const Color(0xFFE9ECF4);
+    final panelSoft = dark ? const Color(0xFF1B202B) : const Color(0xFFEEF1F7);
+    final border = dark ? const Color(0xFF343B4B) : const Color(0xFFD6DCE8);
+    final primary = dark ? const Color(0xFFB5A7FF) : const Color(0xFF6552D9);
+
     final scheme = ColorScheme.fromSeed(
       seedColor: accent,
       brightness: brightness,
-      surface: dark ? const Color(0xFF171A22) : const Color(0xFFFFFFFF),
+      surface: panel,
       error: danger,
     ).copyWith(
-      primary: dark ? const Color(0xFFA99BFF) : accent,
-      secondary: dark ? const Color(0xFF7DD3FC) : const Color(0xFF2563EB),
-      surfaceContainerLowest:
-          dark ? const Color(0xFF0E1016) : const Color(0xFFF7F8FC),
-      surfaceContainerLow:
-          dark ? const Color(0xFF151821) : const Color(0xFFF1F3F8),
-      surfaceContainer:
-          dark ? const Color(0xFF1B1F2A) : const Color(0xFFECEFF5),
-      surfaceContainerHigh:
-          dark ? const Color(0xFF232836) : const Color(0xFFE4E8F0),
-      outline: dark ? const Color(0xFF555C6D) : const Color(0xFF72798A),
-      outlineVariant:
-          dark ? const Color(0xFF303644) : const Color(0xFFD5DAE4),
+      primary: primary,
+      onPrimary: dark ? const Color(0xFF17112F) : Colors.white,
+      secondary: dark ? const Color(0xFF79D7F4) : const Color(0xFF3478D7),
+      surface: panel,
+      surfaceContainerLowest: canvas,
+      surfaceContainerLow: panelSoft,
+      surfaceContainer: panel,
+      surfaceContainerHigh: panelStrong,
+      surfaceTint: Colors.transparent,
+      outline: dark ? const Color(0xFF646D80) : const Color(0xFF737C8E),
+      outlineVariant: border,
     );
 
     final tokens = TasklyTheme(
-      canvas: dark ? const Color(0xFF0E1016) : const Color(0xFFF7F8FC),
-      panel: dark ? const Color(0xFF171A22) : Colors.white,
-      panelStrong: dark ? const Color(0xFF222633) : const Color(0xFFE9EDF5),
-      panelSoft: dark ? const Color(0xFF1B1F2A) : const Color(0xFFF0F2F7),
-      border: dark ? const Color(0xFF303644) : const Color(0xFFD8DDE7),
-      textMuted: dark ? const Color(0xFFB2B8C5) : const Color(0xFF555D6C),
-      textFaint: dark ? const Color(0xFF7F8798) : const Color(0xFF7C8492),
-      chatMine: dark ? const Color(0xFF5C4BC2) : const Color(0xFFE4DEFF),
-      chatOther: dark ? const Color(0xFF20242F) : Colors.white,
+      canvas: canvas,
+      panel: panel,
+      panelStrong: panelStrong,
+      panelSoft: panelSoft,
+      border: border,
+      textMuted: dark ? const Color(0xFFB6BDCB) : const Color(0xFF566071),
+      textFaint: dark ? const Color(0xFF858EA0) : const Color(0xFF7B8494),
+      chatMine: dark ? const Color(0xFF5D4CC5) : const Color(0xFFE5DFFF),
+      chatOther: dark ? const Color(0xFF1C212C) : Colors.white,
       chatMineText: dark ? Colors.white : const Color(0xFF211A4D),
-      chatOtherText: dark ? const Color(0xFFF0F2F7) : const Color(0xFF171A22),
-      senderName: dark ? const Color(0xFFC9BFFF) : const Color(0xFF5845C6),
-      replyBackground:
-          dark ? const Color(0x4D000000) : const Color(0x14000000),
-      success: dark ? const Color(0xFF52D4AA) : success,
-      warning: dark ? const Color(0xFFF5B94E) : warning,
-      danger: dark ? const Color(0xFFFF7D75) : danger,
-      info: dark ? const Color(0xFF75B4FF) : info,
+      chatOtherText: dark ? const Color(0xFFF2F4F8) : const Color(0xFF171A22),
+      senderName: dark ? const Color(0xFFD0C7FF) : const Color(0xFF5542C2),
+      replyBackground: dark ? const Color(0x66000000) : const Color(0x14000000),
+      success: dark ? const Color(0xFF54D7AD) : success,
+      warning: dark ? const Color(0xFFF4BC55) : warning,
+      danger: dark ? const Color(0xFFFF827A) : danger,
+      info: dark ? const Color(0xFF7CB8FF) : info,
     );
 
     final typography = Typography.material2021(
@@ -170,7 +178,6 @@ class AppTheme {
       colorScheme: scheme,
     );
     final baseTextTheme = dark ? typography.white : typography.black;
-
     final textTheme = baseTextTheme.copyWith(
       headlineSmall: baseTextTheme.headlineSmall?.copyWith(
         fontWeight: FontWeight.w800,
@@ -180,20 +187,25 @@ class AppTheme {
         fontWeight: FontWeight.w800,
         letterSpacing: -0.25,
       ),
-      titleMedium: baseTextTheme.titleMedium?.copyWith(
-        fontWeight: FontWeight.w700,
-      ),
-      labelLarge: baseTextTheme.labelLarge?.copyWith(
-        fontWeight: FontWeight.w700,
-      ),
+      titleMedium: baseTextTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+      labelLarge: baseTextTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700),
+    );
+
+    final overlay = SystemUiOverlayStyle(
+      statusBarColor: Colors.transparent,
+      systemNavigationBarColor: Colors.transparent,
+      statusBarIconBrightness: dark ? Brightness.light : Brightness.dark,
+      systemNavigationBarIconBrightness: dark ? Brightness.light : Brightness.dark,
+      statusBarBrightness: dark ? Brightness.dark : Brightness.light,
+      systemNavigationBarContrastEnforced: false,
     );
 
     return ThemeData(
       useMaterial3: true,
       brightness: brightness,
       colorScheme: scheme,
-      scaffoldBackgroundColor: Colors.transparent,
-      canvasColor: Colors.transparent,
+      scaffoldBackgroundColor: canvas,
+      canvasColor: canvas,
       cardColor: tokens.panel,
       dividerColor: tokens.border,
       splashFactory: InkSparkle.splashFactory,
@@ -201,7 +213,7 @@ class AppTheme {
       extensions: [tokens],
       visualDensity: VisualDensity.standard,
       appBarTheme: AppBarTheme(
-        backgroundColor: Colors.transparent,
+        backgroundColor: canvas,
         foregroundColor: scheme.onSurface,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
@@ -209,6 +221,7 @@ class AppTheme {
         centerTitle: false,
         titleTextStyle: textTheme.titleLarge?.copyWith(fontSize: 19),
         iconTheme: IconThemeData(color: scheme.onSurface),
+        systemOverlayStyle: overlay,
       ),
       cardTheme: CardThemeData(
         color: tokens.panel,
@@ -244,13 +257,14 @@ class AppTheme {
         ),
       ),
       navigationBarTheme: NavigationBarThemeData(
-        backgroundColor: Colors.transparent,
+        backgroundColor: tokens.panel,
         surfaceTintColor: Colors.transparent,
-        indicatorColor: scheme.primaryContainer,
+        indicatorColor: dark ? const Color(0xFF4E3D99) : const Color(0xFFE0D9FF),
+        elevation: 0,
         iconTheme: WidgetStateProperty.resolveWith((states) {
           return IconThemeData(
             color: states.contains(WidgetState.selected)
-                ? scheme.onPrimaryContainer
+                ? (dark ? Colors.white : const Color(0xFF3E2E9D))
                 : tokens.textMuted,
           );
         }),
@@ -266,7 +280,7 @@ class AppTheme {
         }),
       ),
       navigationRailTheme: NavigationRailThemeData(
-        backgroundColor: Colors.transparent,
+        backgroundColor: tokens.panel,
         indicatorColor: scheme.primaryContainer,
         selectedIconTheme: IconThemeData(color: scheme.onPrimaryContainer),
         unselectedIconTheme: IconThemeData(color: tokens.textMuted),
@@ -281,7 +295,7 @@ class AppTheme {
         showDragHandle: true,
       ),
       dialogTheme: DialogThemeData(
-        backgroundColor: Colors.transparent,
+        backgroundColor: tokens.panel,
         surfaceTintColor: Colors.transparent,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
       ),

@@ -5,6 +5,8 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:sqflite/sqflite.dart';
 
+import '../services/chat_cache_service.dart';
+
 class LocalChatDatabase {
   LocalChatDatabase._();
 
@@ -12,6 +14,7 @@ class LocalChatDatabase {
 
   Database? _db;
   String? _namespace;
+  final ChatCacheService _chatCache = ChatCacheService();
 
   bool get isOpen => _db != null;
   String? get namespace => _namespace;
@@ -30,6 +33,7 @@ class LocalChatDatabase {
 
     await close();
     _namespace = safe;
+    _chatCache.useNamespace(authUserId);
 
     final base = await getApplicationSupportDirectory();
     final dir = Directory(p.join(base.path, 'taskly_local_chat', safe));
@@ -489,6 +493,19 @@ class LocalChatDatabase {
     int limit = 80,
     int? beforeLocalId,
   }) async {
+    // The .cache transcript is the hot path. SQLite remains the local index
+    // and action/outbox store, but opening a chat must not wait for SQLite
+    // reconstruction when the device already has its cached transcript.
+    if (beforeLocalId == null) {
+      final cached = await _chatCache.readMessages(channelId);
+      if (cached.isNotEmpty) {
+        final limited = cached.length <= limit
+            ? cached
+            : cached.sublist(cached.length - limit);
+        return List<Map<String, dynamic>>.from(limited);
+      }
+    }
+
     final where = beforeLocalId == null
         ? 'channel_id = ?'
         : 'channel_id = ? AND id < ?';
@@ -626,6 +643,7 @@ class LocalChatDatabase {
       where: 'channel_id = ?',
       whereArgs: [channelId],
     );
+    await _chatCache.clearChannel(channelId);
   }
 
   Future<void> deleteConversation(int channelId) async {

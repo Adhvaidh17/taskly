@@ -6,12 +6,6 @@ import 'package:flutter/services.dart';
 
 import '../models/channel.dart';
 
-/// Persistent device-owned chat snapshots.
-///
-/// The Android implementation places this directory at
-/// `Taskly/.cache`. SQLite is the local index, while these snapshots are the
-/// recovery source and the fast-start transcript cache. Cache files are never
-/// deleted as part of normal recovery.
 class ChatCacheService {
   static const MethodChannel _channel = MethodChannel('taskly/media');
   String _namespace = 'anonymous';
@@ -43,22 +37,19 @@ class ChatCacheService {
   Future<List<Map<String, dynamic>>> readMessages(int channelId) async {
     final file = await _file('channel_${channelId}_messages_v43.json');
     if (file == null || !await file.exists()) return const [];
-    return _readList(file, 'messages', channelId: channelId);
+    return _readList(file);
   }
 
   Future<void> writeMessages(int channelId, List<Map<String, dynamic>> rows) async {
-    final normalized = rows
-        .where((row) => _asInt(row['id']) > 0)
-        .map((row) => Map<String, dynamic>.from(row))
-        .toList()
+    final normalized = rows.map((row) => Map<String, dynamic>.from(row)).toList()
       ..sort((a, b) => _createdAt(a).compareTo(_createdAt(b)));
     await _writeJson('channel_${channelId}_messages_v43.json', normalized);
   }
 
   Future<void> upsertMessage(int channelId, Map<String, dynamic> row) async {
-    if (_asInt(row['id']) <= 0) return;
     final current = await readMessages(channelId);
-    final index = current.indexWhere((item) => _asInt(item['id']) == _asInt(row['id']));
+    final id = '${row['id'] ?? row['client_message_id'] ?? ''}';
+    final index = current.indexWhere((item) => '${item['id'] ?? item['client_message_id'] ?? ''}' == id);
     if (index >= 0) {
       current[index] = Map<String, dynamic>.from(row);
     } else {
@@ -91,14 +82,9 @@ class ChatCacheService {
   }
 
   Future<void> writeConversations(List<ConversationItem> items) async {
-    await _writeJson(
-      'conversations_v43.json',
-      items.map(_conversationJson).toList(growable: false),
-    );
+    await _writeJson('conversations_v43.json', items.map(_conversationJson).toList());
   }
 
-  /// Reads the legacy v43 files already present on the Android device.
-  /// Each channel has its own JSON array; there is no wrapper object.
   Future<({
     List<Map<String, dynamic>> conversations,
     Map<int, List<Map<String, dynamic>>> messages,
@@ -108,34 +94,51 @@ class ChatCacheService {
       return (conversations: <Map<String, dynamic>>[], messages: <int, List<Map<String, dynamic>>>{});
     }
 
+    final allFiles = <File>[];
+    await for (final entity in root.list(followLinks: false)) {
+      if (entity is File && entity.path.endsWith('.json')) allFiles.add(entity);
+    }
+
+    final requestedPrefix = '${_namespace}_';
+    var prefix = requestedPrefix;
+    final requested = allFiles.where((file) => _fileName(file).startsWith(requestedPrefix)).toList();
+
+    // If the authenticated namespace is not present, use the newest local
+    // Taskly conversation snapshot on the device. This keeps recovery working
+    // after reinstall/session migration without requiring server chat history.
+    if (requested.isEmpty) {
+      String? newest;
+      DateTime? newestTime;
+      for (final file in allFiles) {
+        final name = _fileName(file);
+        final match = RegExp(r'^(.+)_conversations_v43\.json$').firstMatch(name);
+        if (match == null) continue;
+        final modified = await file.lastModified();
+        if (newestTime == null || modified.isAfter(newestTime)) {
+          newest = match.group(1);
+          newestTime = modified;
+        }
+      }
+      if (newest != null) prefix = '${newest}_';
+    }
+
     final conversations = <Map<String, dynamic>>[];
     final messages = <int, List<Map<String, dynamic>>>{};
-    final prefix = '${_namespace}_';
 
-    await for (final entity in root.list(followLinks: false)) {
-      if (entity is! File) continue;
-      final name = entity.uri.pathSegments.isEmpty ? entity.path : entity.uri.pathSegments.last;
+    for (final entity in allFiles) {
+      final name = _fileName(entity);
       if (!name.startsWith(prefix) || !name.endsWith('.json')) continue;
-
       try {
         final decoded = jsonDecode(await entity.readAsString());
         if (decoded is! List) continue;
-
         if (name == '${prefix}conversations_v43.json') {
           conversations.addAll(decoded.whereType<Map>().map(Map<String, dynamic>.from));
           continue;
         }
-
-        final match = RegExp(
-          '^${RegExp.escape(prefix)}channel_(\\d+)_messages_v43\\.json\$',
-        ).firstMatch(name);
+        final match = RegExp('^${RegExp.escape(prefix)}channel_(\\d+)_messages_v43\\.json\$').firstMatch(name);
         final channelId = match == null ? null : int.tryParse(match.group(1)!);
         if (channelId == null || channelId <= 0) continue;
-
-        messages[channelId] = decoded
-            .whereType<Map>()
-            .map((row) => Map<String, dynamic>.from(row))
-            .toList();
+        messages[channelId] = decoded.whereType<Map>().map(Map<String, dynamic>.from).toList();
       } catch (error) {
         debugPrint('TASKLY_CACHE_RECOVERY_READ_ERROR file=$name $error');
       }
@@ -144,15 +147,11 @@ class ChatCacheService {
     return (conversations: conversations, messages: messages);
   }
 
-  /// Compatibility helper for diagnostics. Returns the same typed data as the
-  /// legacy importer without assuming the JSON files contain a wrapper object.
   Future<Map<String, dynamic>> readRecoveryFiles() async {
     final bundle = await readLegacyRecoveryBundle();
     return {
       'conversations': bundle.conversations,
-      'messages': {
-        for (final entry in bundle.messages.entries) '${entry.key}': entry.value,
-      },
+      'messages': {for (final entry in bundle.messages.entries) '${entry.key}': entry.value},
     };
   }
 
@@ -165,9 +164,7 @@ class ChatCacheService {
     final wanted = fileName.trim();
     if (wanted.isEmpty) return null;
     await for (final entity in mediaRoot.list(recursive: true, followLinks: false)) {
-      if (entity is File && entity.uri.pathSegments.isNotEmpty && entity.uri.pathSegments.last == wanted) {
-        return entity.path;
-      }
+      if (entity is File && _fileName(entity) == wanted) return entity.path;
     }
     return null;
   }
@@ -190,20 +187,13 @@ class ChatCacheService {
     }
   }
 
-  Future<List<Map<String, dynamic>>> _readList(
-    File file,
-    String kind, {
-    int? channelId,
-  }) async {
+  Future<List<Map<String, dynamic>>> _readList(File file) async {
     try {
       final decoded = jsonDecode(await file.readAsString());
       if (decoded is! List) return const [];
-      return decoded
-          .whereType<Map>()
-          .map((row) => Map<String, dynamic>.from(row))
-          .toList(growable: true);
+      return decoded.whereType<Map>().map(Map<String, dynamic>.from).toList(growable: true);
     } catch (error) {
-      debugPrint('TASKLY_CACHE_READ_ERROR kind=$kind channel=$channelId $error');
+      debugPrint('TASKLY_CACHE_READ_ERROR $error');
       return const [];
     }
   }
@@ -230,9 +220,8 @@ class ChatCacheService {
         'pending_join_requests': item.pendingJoinRequests,
         'is_self_chat': item.isSelfChat,
       };
+
+  String _fileName(File file) => file.uri.pathSegments.isEmpty ? file.path : file.uri.pathSegments.last;
+  int _asInt(Object? value) => value is num ? value.toInt() : int.tryParse('$value') ?? 0;
+  String _createdAt(Map<String, dynamic> row) => '${row['created_at'] ?? ''}';
 }
-
-DateTime _createdAt(Map<String, dynamic> row) =>
-    DateTime.tryParse('${row['created_at'] ?? ''}') ?? DateTime.fromMillisecondsSinceEpoch(0);
-
-int _asInt(dynamic value) => value is int ? value : int.tryParse('$value') ?? 0;

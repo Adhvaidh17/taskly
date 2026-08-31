@@ -85,9 +85,6 @@ class ChatCacheService {
     await _writeJson('conversations_v43.json', items.map(_conversationJson).toList());
   }
 
-  /// Finds the cache namespace that actually contains messages belonging to
-  /// the authenticated profile. This is important on devices that contain
-  /// caches for several Taskly accounts/devices.
   Future<({
     String? namespace,
     List<Map<String, dynamic>> conversations,
@@ -114,6 +111,21 @@ class ChatCacheService {
       namespaces.add(_namespace);
     }
 
+    String? newestNamespace;
+    DateTime? newestTime;
+    for (final namespace in namespaces) {
+      final file = files.firstWhere(
+        (candidate) => _fileName(candidate) == '${namespace}_conversations_v43.json',
+        orElse: () => File(''),
+      );
+      if (file.path.isEmpty || !await file.exists()) continue;
+      final modified = await file.lastModified();
+      if (newestTime == null || modified.isAfter(newestTime)) {
+        newestTime = modified;
+        newestNamespace = namespace;
+      }
+    }
+
     for (final namespace in namespaces) {
       final prefix = '${namespace}_';
       final conversations = <Map<String, dynamic>>[];
@@ -135,7 +147,7 @@ class ChatCacheService {
           if (channelId == null || channelId <= 0) continue;
           final rows = decoded.whereType<Map>().map(Map<String, dynamic>.from).toList();
           messages[channelId] = rows;
-          if (rows.any((row) {
+          if (profileId > 0 && rows.any((row) {
             final sender = row['sender'];
             final senderId = sender is Map ? sender['id'] : row['sender_profile_id'];
             return _asInt(senderId) == profileId;
@@ -147,7 +159,7 @@ class ChatCacheService {
         }
       }
 
-      if (profileMatch) {
+      if (profileMatch || (profileId <= 0 && namespace == newestNamespace)) {
         return (namespace: namespace, conversations: conversations, messages: messages);
       }
     }

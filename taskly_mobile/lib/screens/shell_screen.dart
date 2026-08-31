@@ -114,10 +114,13 @@ class _ShellScreenState extends State<ShellScreen> with WidgetsBindingObserver {
   Widget build(BuildContext context) {
     final notifications = context.watch<NotificationProvider>();
     final scheme = Theme.of(context).colorScheme;
+    final surface = Theme.of(context).scaffoldBackgroundColor;
     return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      backgroundColor: surface,
       extendBody: false,
       appBar: AppBar(
+        backgroundColor: surface,
+        surfaceTintColor: Colors.transparent,
         title: Row(
           children: [
             Container(
@@ -128,7 +131,7 @@ class _ShellScreenState extends State<ShellScreen> with WidgetsBindingObserver {
                 borderRadius: BorderRadius.circular(9),
               ),
               alignment: Alignment.center,
-              child: const Text('T', style: TextStyle(fontWeight: FontWeight.w900)),
+              child: Text('T', style: TextStyle(fontWeight: FontWeight.w900, color: scheme.onPrimary)),
             ),
             const SizedBox(width: 9),
             Text(_titles[_index], style: const TextStyle(fontWeight: FontWeight.w800)),
@@ -165,6 +168,8 @@ class _ShellScreenState extends State<ShellScreen> with WidgetsBindingObserver {
       bottomNavigationBar: NavigationBar(
         selectedIndex: _index,
         onDestinationSelected: (value) => setState(() => _index = value),
+        backgroundColor: surface,
+        surfaceTintColor: Colors.transparent,
         destinations: const [
           NavigationDestination(icon: Icon(Icons.chat_bubble_outline), selectedIcon: Icon(Icons.chat_bubble), label: 'Chats'),
           NavigationDestination(icon: Icon(Icons.task_alt_outlined), selectedIcon: Icon(Icons.task_alt), label: 'Tasks'),

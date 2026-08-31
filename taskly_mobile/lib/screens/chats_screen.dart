@@ -12,13 +12,11 @@ import 'contacts_screen.dart';
 
 class ChatsScreen extends StatefulWidget {
   const ChatsScreen({super.key});
-
   @override
   State<ChatsScreen> createState() => _ChatsScreenState();
 }
 
-class _ChatsScreenState extends State<ChatsScreen>
-    with AutomaticKeepAliveClientMixin {
+class _ChatsScreenState extends State<ChatsScreen> with AutomaticKeepAliveClientMixin {
   @override
   bool get wantKeepAlive => true;
 
@@ -26,42 +24,83 @@ class _ChatsScreenState extends State<ChatsScreen>
   Widget build(BuildContext context) {
     super.build(context);
     final provider = context.watch<ChatProvider>();
-    final chats = provider.conversations
-        .map(
-          (conversation) => ChatPreviewV62(
-            id: '${conversation.channelId}',
-            title: conversation.name,
-            preview: conversation.lastMessage ??
-                (conversation.isSelfChat
-                    ? 'Your private Taskly space'
-                    : conversation.isGroup
-                        ? 'Group conversation'
-                        : 'Start a private conversation'),
-            timeLabel: conversation.lastMessageAt == null
-                ? ''
-                : DateUtils.isSameDay(
-                        conversation.lastMessageAt!, DateTime.now())
-                    ? DateFormat('h:mm a')
-                        .format(conversation.lastMessageAt!)
-                    : DateFormat('dd/MM').format(conversation.lastMessageAt!),
-            avatarUrl: conversation.avatarUrl,
-            unreadCount: conversation.unreadCount,
-            isMuted: conversation.isMuted,
-          ),
-        )
-        .toList(growable: false);
+    final items = provider.conversations;
 
     return AiChatListShellV62(
-      chats: chats,
-      onOpenChat: (chat) {
-        final conversation = provider.conversations
-            .where((item) => '${item.channelId}' == chat.id)
-            .firstOrNull;
-        if (conversation != null) _openConversation(context, conversation);
-      },
-      onNewChat: () => _openNewChatHub(context),
-      onMore: () => _showChatOptions(context),
+      child: SafeArea(
+        child: CustomScrollView(
+          physics: const BouncingScrollPhysics(),
+          slivers: [
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
+              sliver: SliverToBoxAdapter(
+                child: Row(
+                  children: [
+                    const Expanded(
+                      child: Text(
+                        'Chats',
+                        style: TextStyle(fontSize: 28, fontWeight: FontWeight.w800),
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'New chat',
+                      onPressed: () => _openNewChatHub(context),
+                      icon: const Icon(Icons.edit_rounded),
+                    ),
+                    IconButton(
+                      tooltip: 'Chat options',
+                      onPressed: () => _showChatOptions(context),
+                      icon: const Icon(Icons.more_horiz_rounded),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            if (items.isEmpty)
+              const SliverFillRemaining(
+                hasScrollBody: false,
+                child: Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(32),
+                    child: Text('Your chats will appear here.'),
+                  ),
+                ),
+              )
+            else
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(12, 4, 12, 24),
+                sliver: SliverList.builder(
+                  itemCount: items.length,
+                  itemBuilder: (context, index) {
+                    final chat = items[index];
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      child: AiChatListItemV62(
+                        title: chat.name,
+                        preview: chat.lastMessage ??
+                            (chat.isGroup ? 'Group conversation' : 'Start a private conversation'),
+                        timeLabel: _timeLabel(chat.lastMessageAt),
+                        avatar: _Avatar(chat: chat),
+                        unreadCount: chat.unreadCount,
+                        isMuted: chat.isMuted,
+                        onTap: () => _openConversation(context, chat),
+                      ),
+                    );
+                  },
+                ),
+              ),
+          ],
+        ),
+      ),
     );
+  }
+
+  String _timeLabel(DateTime? value) {
+    if (value == null) return '';
+    final local = value.toLocal();
+    return DateUtils.isSameDay(local, DateTime.now())
+        ? DateFormat('h:mm a').format(local)
+        : DateFormat('dd/MM').format(local);
   }
 
   Future<void> _openNewChatHub(BuildContext context) async {
@@ -74,48 +113,31 @@ class _ChatsScreenState extends State<ChatsScreen>
   }
 
   Future<void> _openContacts(BuildContext context) async {
-    await Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const ContactsScreen()),
-    );
+    await Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ContactsScreen()));
     if (context.mounted) await context.read<ChatProvider>().loadConversations();
   }
 
-  Future<void> _openConversation(
-    BuildContext context,
-    ConversationItem conversation,
-  ) async {
-    await Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => ChatRoomScreen(conversation: conversation)),
-    );
+  Future<void> _openConversation(BuildContext context, ConversationItem conversation) async {
+    await Navigator.of(context).push(MaterialPageRoute(builder: (_) => ChatRoomScreen(conversation: conversation)));
     if (context.mounted) await context.read<ChatProvider>().loadConversations();
   }
 
   Future<void> _showChatOptions(BuildContext context) async {
     final provider = context.read<ChatProvider>();
-    final conversation = provider.conversations.isEmpty
-        ? null
-        : await showModalBottomSheet<ConversationItem>(
-            context: context,
-            showDragHandle: true,
-            builder: (sheet) => SafeArea(
-              child: ListView(
-                shrinkWrap: true,
-                children: provider.conversations
-                    .map(
-                      (item) => ListTile(
-                        leading: const Icon(Icons.tune_rounded),
-                        title: Text(item.name),
-                        subtitle: Text(item.isMuted ? 'Muted' : 'Notifications on'),
-                        onTap: () => Navigator.pop(sheet, item),
-                      ),
-                    )
-                    .toList(),
-              ),
-            ),
-          );
-    if (conversation == null || !context.mounted) return;
-    await Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => ChatRoomScreen(conversation: conversation)),
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheet) => SafeArea(
+        child: ListView(
+          shrinkWrap: true,
+          children: provider.conversations.map((item) => ListTile(
+            leading: const Icon(Icons.tune_rounded),
+            title: Text(item.name),
+            subtitle: Text(item.isMuted ? 'Muted' : 'Notifications on'),
+            onTap: () => Navigator.pop(sheet),
+          )).toList(),
+        ),
+      ),
     );
   }
 
@@ -138,7 +160,7 @@ class _ChatsScreenState extends State<ChatsScreen>
       ),
     );
     if (ok != true || name.text.trim().length < 2 || !context.mounted) return;
-    await context.read<WorkspaceProvider>().createGroup(name.text, description.text);
+    await context.read<WorkspaceProvider>().createGroup(name.text.trim(), description.text.trim());
     if (context.mounted) await context.read<ChatProvider>().loadConversations();
   }
 
@@ -156,7 +178,38 @@ class _ChatsScreenState extends State<ChatsScreen>
       ),
     );
     if (ok != true || code.text.trim().isEmpty || !context.mounted) return;
-    await context.read<WorkspaceProvider>().joinGroup(code.text);
+    await context.read<WorkspaceProvider>().joinGroup(code.text.trim());
     if (context.mounted) await context.read<ChatProvider>().loadConversations();
+  }
+}
+
+class _Avatar extends StatelessWidget {
+  const _Avatar({required this.chat});
+  final ConversationItem chat;
+
+  @override
+  Widget build(BuildContext context) {
+    final image = chat.avatarUrl;
+    return Container(
+      width: 52,
+      height: 52,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: LinearGradient(
+          colors: [
+            Theme.of(context).colorScheme.primary,
+            Theme.of(context).colorScheme.secondary,
+          ],
+        ),
+      ),
+      padding: const EdgeInsets.all(2),
+      child: CircleAvatar(
+        backgroundColor: Theme.of(context).colorScheme.surface,
+        backgroundImage: image == null || image.isEmpty ? null : NetworkImage(image),
+        child: image == null || image.isEmpty
+            ? Text(chat.name.trim().isEmpty ? '?' : chat.name.trim()[0].toUpperCase(), style: const TextStyle(fontWeight: FontWeight.w800))
+            : null,
+      ),
+    );
   }
 }

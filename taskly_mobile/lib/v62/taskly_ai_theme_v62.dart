@@ -10,7 +10,6 @@ abstract final class TasklyAiThemeV62 {
   static const navy = Color(0xFF11182A);
   static const snow = Color(0xFFF5F4FA);
   static const paper = Color(0xFFFFFFFF);
-
   static const violet = Color(0xFF7657F7);
   static const electricViolet = Color(0xFF9B63FF);
   static const indigo = Color(0xFF536BFF);
@@ -24,19 +23,16 @@ abstract final class TasklyAiThemeV62 {
     colors: [Color(0xFFB06BFF), Color(0xFF7657F7), Color(0xFF536BFF), Color(0xFF5BD9F4)],
     stops: [0, .34, .70, 1],
   );
-
   static const auroraHorizontal = LinearGradient(
     begin: Alignment.centerLeft,
     end: Alignment.centerRight,
     colors: [Color(0xFF9B63FF), Color(0xFF7657F7), Color(0xFF536BFF)],
   );
-
   static const lightWash = LinearGradient(
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
     colors: [Color(0xFFFFFFFF), Color(0xFFF3F0FF), Color(0xFFEFF8FF)],
   );
-
   static const darkWash = LinearGradient(
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
@@ -67,7 +63,6 @@ abstract final class TasklyAiThemeV62 {
     final on = scheme.onSurface;
     final muted = on.withValues(alpha: dark ? .64 : .58);
     final border = on.withValues(alpha: dark ? .14 : .12);
-
     final text = base.textTheme.copyWith(
       displaySmall: base.textTheme.displaySmall?.copyWith(fontSize: 38, height: 1.02, fontWeight: FontWeight.w800, letterSpacing: -1.6),
       headlineMedium: base.textTheme.headlineMedium?.copyWith(fontSize: 30, height: 1.06, fontWeight: FontWeight.w800, letterSpacing: -1.1),
@@ -77,9 +72,8 @@ abstract final class TasklyAiThemeV62 {
       bodyLarge: base.textTheme.bodyLarge?.copyWith(height: 1.42),
       bodyMedium: base.textTheme.bodyMedium?.copyWith(height: 1.38),
       bodySmall: base.textTheme.bodySmall?.copyWith(height: 1.34, color: muted),
-      labelLarge: base.textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w750),
+      labelLarge: base.textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700),
     );
-
     return base.copyWith(
       textTheme: text,
       dividerColor: border,
@@ -182,9 +176,7 @@ class TasklyGlassV62 extends StatelessWidget {
         gradient: gradient ?? (dark ? const LinearGradient(colors: [Color(0xCC151A2A), Color(0xB30F1422)]) : const LinearGradient(colors: [Color(0xE6FFFFFF), Color(0xBFF7F3FF)])),
         borderRadius: BorderRadius.circular(radius),
         border: Border.all(color: context.tasklyBorderV62),
-        boxShadow: [
-          BoxShadow(blurRadius: 28, spreadRadius: -12, color: Colors.black.withValues(alpha: dark ? .45 : .08), offset: const Offset(0, 14)),
-        ],
+        boxShadow: [BoxShadow(blurRadius: 28, spreadRadius: -12, color: Colors.black.withValues(alpha: dark ? .45 : .08), offset: const Offset(0, 14))],
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(radius),

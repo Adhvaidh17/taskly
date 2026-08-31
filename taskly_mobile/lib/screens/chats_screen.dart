@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../models/channel.dart';
 import '../providers/chat_provider.dart';
 import '../providers/workspace_provider.dart';
+import '../services/chat_cache_service.dart';
 import '../v62/ai_chat_list_shell_v62.dart';
 import '../v62/new_chat_hub_v62.dart';
 import 'chat_room_screen.dart';
@@ -17,14 +18,70 @@ class ChatsScreen extends StatefulWidget {
 }
 
 class _ChatsScreenState extends State<ChatsScreen> with AutomaticKeepAliveClientMixin {
+  final ChatCacheService _cache = ChatCacheService();
+  List<ConversationItem> _cachedConversations = const [];
+  bool _cacheLoaded = false;
+
   @override
   bool get wantKeepAlive => true;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadCachedConversations());
+  }
+
+  Future<void> _loadCachedConversations() async {
+    if (!mounted) return;
+    try {
+      final cached = await _cache.readConversations();
+      if (!mounted) return;
+      setState(() {
+        _cachedConversations = cached;
+        _cacheLoaded = true;
+      });
+    } catch (_) {
+      if (mounted) setState(() => _cacheLoaded = true);
+    }
+  }
+
+  List<ConversationItem> _mergeItems(List<ConversationItem> serverOrLocal) {
+    final byChannel = <int, ConversationItem>{};
+    for (final item in _cachedConversations) {
+      if (item.channelId > 0) byChannel[item.channelId] = item;
+    }
+    for (final item in serverOrLocal) {
+      final cached = byChannel[item.channelId];
+      if (cached == null) {
+        byChannel[item.channelId] = item;
+      } else {
+        byChannel[item.channelId] = item.copyWith(
+          lastMessage: item.lastMessage?.isNotEmpty == true ? item.lastMessage : cached.lastMessage,
+          lastSenderName: item.lastSenderName?.isNotEmpty == true ? item.lastSenderName : cached.lastSenderName,
+          lastMessageAt: item.lastMessageAt ?? cached.lastMessageAt,
+          unreadCount: item.unreadCount > 0 ? item.unreadCount : cached.unreadCount,
+          isMuted: item.isMuted || cached.isMuted,
+          isArchived: item.isArchived || cached.isArchived,
+        );
+      }
+    }
+    final result = byChannel.values.toList();
+    result.sort((a, b) {
+      final at = a.lastMessageAt;
+      final bt = b.lastMessageAt;
+      if (at == null && bt == null) return a.name.compareTo(b.name);
+      if (at == null) return 1;
+      if (bt == null) return -1;
+      return bt.compareTo(at);
+    });
+    return result;
+  }
 
   @override
   Widget build(BuildContext context) {
     super.build(context);
     final provider = context.watch<ChatProvider>();
-    final items = provider.conversations;
+    final items = _mergeItems(provider.conversations);
 
     return AiChatListShellV62(
       child: SafeArea(
@@ -32,61 +89,77 @@ class _ChatsScreenState extends State<ChatsScreen> with AutomaticKeepAliveClient
           physics: const BouncingScrollPhysics(),
           slivers: [
             SliverPadding(
-              padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
+              padding: const EdgeInsets.fromLTRB(18, 12, 18, 6),
               sliver: SliverToBoxAdapter(
                 child: Row(
                   children: [
-                    const Expanded(
-                      child: Text(
-                        'Chats',
-                        style: TextStyle(fontSize: 28, fontWeight: FontWeight.w800),
-                      ),
+                    Expanded(
+                      child: Text('Chats', style: Theme.of(context).textTheme.headlineMedium),
                     ),
-                    IconButton(
-                      tooltip: 'New chat',
-                      onPressed: () => _openNewChatHub(context),
-                      icon: const Icon(Icons.edit_rounded),
-                    ),
-                    IconButton(
-                      tooltip: 'Chat options',
-                      onPressed: () => _showChatOptions(context),
-                      icon: const Icon(Icons.more_horiz_rounded),
-                    ),
+                    _GlassIconButton(icon: Icons.edit_rounded, onTap: () => _openNewChatHub(context), tooltip: 'New chat'),
+                    const SizedBox(width: 8),
+                    _GlassIconButton(icon: Icons.more_horiz_rounded, onTap: () => _showChatOptions(context), tooltip: 'Chat options'),
                   ],
                 ),
               ),
             ),
-            if (items.isEmpty)
-              const SliverFillRemaining(
-                hasScrollBody: false,
-                child: Center(
-                  child: Padding(
-                    padding: EdgeInsets.all(32),
-                    child: Text('Your chats will appear here.'),
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 10),
+              sliver: SliverToBoxAdapter(
+                child: TextField(
+                  decoration: const InputDecoration(
+                    prefixIcon: Icon(Icons.search_rounded),
+                    hintText: 'Search chats',
                   ),
+                  onChanged: (_) {},
                 ),
-              )
-            else
+              ),
+            ),
+            if (items.isNotEmpty)
               SliverPadding(
-                padding: const EdgeInsets.fromLTRB(12, 4, 12, 24),
+                padding: const EdgeInsets.fromLTRB(16, 2, 16, 24),
                 sliver: SliverList.builder(
                   itemCount: items.length,
                   itemBuilder: (context, index) {
                     final chat = items[index];
                     return Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      padding: const EdgeInsets.only(bottom: 9),
                       child: AiChatListItemV62(
-                        title: chat.name,
-                        preview: chat.lastMessage ??
-                            (chat.isGroup ? 'Group conversation' : 'Start a private conversation'),
+                        title: chat.name.isEmpty ? 'Conversation' : chat.name,
+                        preview: chat.lastMessage ?? '',
                         timeLabel: _timeLabel(chat.lastMessageAt),
                         avatar: _Avatar(chat: chat),
                         unreadCount: chat.unreadCount,
                         isMuted: chat.isMuted,
+                        isGroup: chat.isGroup,
                         onTap: () => _openConversation(context, chat),
                       ),
                     );
                   },
+                ),
+              )
+            else
+              SliverFillRemaining(
+                hasScrollBody: false,
+                child: Center(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(32, 20, 32, 100),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          width: 72,
+                          height: 72,
+                          decoration: BoxDecoration(shape: BoxShape.circle, gradient: TasklyAiThemeV62.aurora),
+                          child: const Icon(Icons.forum_rounded, color: Colors.white, size: 32),
+                        ),
+                        const SizedBox(height: 18),
+                        Text(_cacheLoaded ? 'Your chats will appear here.' : 'Loading your chats…', textAlign: TextAlign.center, style: Theme.of(context).textTheme.titleMedium),
+                        const SizedBox(height: 8),
+                        Text('Cached conversations stay available on this device.', textAlign: TextAlign.center, style: TextStyle(color: context.tasklyMutedV62)),
+                      ],
+                    ),
+                  ),
                 ),
               ),
           ],
@@ -98,9 +171,7 @@ class _ChatsScreenState extends State<ChatsScreen> with AutomaticKeepAliveClient
   String _timeLabel(DateTime? value) {
     if (value == null) return '';
     final local = value.toLocal();
-    return DateUtils.isSameDay(local, DateTime.now())
-        ? DateFormat('h:mm a').format(local)
-        : DateFormat('dd/MM').format(local);
+    return DateUtils.isSameDay(local, DateTime.now()) ? DateFormat('h:mm a').format(local) : DateFormat('dd/MM').format(local);
   }
 
   Future<void> _openNewChatHub(BuildContext context) async {
@@ -114,28 +185,43 @@ class _ChatsScreenState extends State<ChatsScreen> with AutomaticKeepAliveClient
 
   Future<void> _openContacts(BuildContext context) async {
     await Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ContactsScreen()));
-    if (context.mounted) await context.read<ChatProvider>().loadConversations();
+    if (context.mounted) {
+      await context.read<ChatProvider>().loadConversations();
+      await _loadCachedConversations();
+    }
   }
 
   Future<void> _openConversation(BuildContext context, ConversationItem conversation) async {
     await Navigator.of(context).push(MaterialPageRoute(builder: (_) => ChatRoomScreen(conversation: conversation)));
-    if (context.mounted) await context.read<ChatProvider>().loadConversations();
+    if (context.mounted) {
+      await context.read<ChatProvider>().loadConversations();
+      await _loadCachedConversations();
+    }
   }
 
   Future<void> _showChatOptions(BuildContext context) async {
     final provider = context.read<ChatProvider>();
+    final items = _mergeItems(provider.conversations);
     await showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
-      builder: (sheet) => SafeArea(
-        child: ListView(
-          shrinkWrap: true,
-          children: provider.conversations.map((item) => ListTile(
-            leading: const Icon(Icons.tune_rounded),
-            title: Text(item.name),
-            subtitle: Text(item.isMuted ? 'Muted' : 'Notifications on'),
-            onTap: () => Navigator.pop(sheet),
-          )).toList(),
+      backgroundColor: Colors.transparent,
+      builder: (sheet) => Padding(
+        padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+        child: Material(
+          color: Theme.of(context).colorScheme.surface.withValues(alpha: .92),
+          borderRadius: BorderRadius.circular(28),
+          child: SafeArea(
+            child: ListView(
+              shrinkWrap: true,
+              children: items.map((item) => ListTile(
+                leading: _Avatar(chat: item, size: 40),
+                title: Text(item.name),
+                subtitle: Text(item.isMuted ? 'Muted' : item.isGroup ? 'Group' : 'Private chat'),
+                onTap: () => Navigator.pop(sheet),
+              )).toList(),
+            ),
+          ),
         ),
       ),
     );
@@ -183,25 +269,44 @@ class _ChatsScreenState extends State<ChatsScreen> with AutomaticKeepAliveClient
   }
 }
 
+class _GlassIconButton extends StatelessWidget {
+  const _GlassIconButton({required this.icon, required this.onTap, required this.tooltip});
+  final IconData icon;
+  final VoidCallback onTap;
+  final String tooltip;
+
+  @override
+  Widget build(BuildContext context) => Tooltip(
+        message: tooltip,
+        child: Material(
+          color: context.tasklyGlassV62,
+          borderRadius: BorderRadius.circular(17),
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(17),
+            child: Container(
+              width: 46,
+              height: 46,
+              decoration: BoxDecoration(borderRadius: BorderRadius.circular(17), border: Border.all(color: context.tasklyBorderV62)),
+              child: Icon(icon),
+            ),
+          ),
+        ),
+      );
+}
+
 class _Avatar extends StatelessWidget {
-  const _Avatar({required this.chat});
+  const _Avatar({required this.chat, this.size = 54});
   final ConversationItem chat;
+  final double size;
 
   @override
   Widget build(BuildContext context) {
     final image = chat.avatarUrl;
     return Container(
-      width: 52,
-      height: 52,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        gradient: LinearGradient(
-          colors: [
-            Theme.of(context).colorScheme.primary,
-            Theme.of(context).colorScheme.secondary,
-          ],
-        ),
-      ),
+      width: size,
+      height: size,
+      decoration: const BoxDecoration(shape: BoxShape.circle, gradient: TasklyAiThemeV62.aurora),
       padding: const EdgeInsets.all(2),
       child: CircleAvatar(
         backgroundColor: Theme.of(context).colorScheme.surface,

@@ -114,7 +114,7 @@ class _ShellScreenState extends State<ShellScreen> with WidgetsBindingObserver {
   Widget build(BuildContext context) {
     final notifications = context.watch<NotificationProvider>();
     final scheme = Theme.of(context).colorScheme;
-    final surface = Theme.of(context).scaffoldBackgroundColor;
+    final surface = scheme.surface;
     return Scaffold(
       backgroundColor: surface,
       extendBody: false,

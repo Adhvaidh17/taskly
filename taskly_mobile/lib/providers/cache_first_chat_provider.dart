@@ -94,8 +94,15 @@ class CacheFirstChatProvider extends ChatProvider {
 
   @override
   Future<void> openConversation(ConversationItem conversation) async {
-    final profileId = currentProfileId ?? await backend.profileId();
-    currentProfileId = profileId;
+    int profileId = currentProfileId ?? 0;
+    if (profileId <= 0) {
+      try {
+        profileId = await backend.profileId();
+        currentProfileId = profileId;
+      } catch (error) {
+        debugPrint('TASKLY_CACHE_FIRST_PROFILE_ID $error');
+      }
+    }
 
     final cached = await _cachedMessages(conversation.channelId, profileId);
     if (cached.isNotEmpty) {

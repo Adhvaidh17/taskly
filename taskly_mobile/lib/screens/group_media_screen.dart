@@ -24,6 +24,7 @@ class _GroupMediaScreenState extends State<GroupMediaScreen>
   late final TabController _tabs;
   final Map<String, List<Map<String, dynamic>>> _rows = {};
   final Set<String> _loading = {};
+  final Map<String, String> _errors = {};
 
   @override
   void initState() {
@@ -43,6 +44,7 @@ class _GroupMediaScreenState extends State<GroupMediaScreen>
   Future<void> _load(String kind) async {
     if (_loading.contains(kind)) return;
     _loading.add(kind);
+    _errors.remove(kind);
     if (mounted) setState(() {});
     try {
       final backend = context.read<ChatProvider>().backend;
@@ -51,11 +53,37 @@ class _GroupMediaScreenState extends State<GroupMediaScreen>
         kind: kind,
         limit: 100,
       );
+    } catch (error) {
+      _errors[kind] = '$error';
+      debugPrint('TASKLY_GROUP_MEDIA_LOAD $kind $error');
     } finally {
       _loading.remove(kind);
       if (mounted) setState(() {});
     }
   }
+
+  Widget _errorState(String kind) => Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.cloud_off_rounded, size: 36),
+              const SizedBox(height: 12),
+              Text(
+                'Unable to load ${kind == 'documents' ? 'documents' : kind}',
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 10),
+              OutlinedButton.icon(
+                onPressed: () => _load(kind),
+                icon: const Icon(Icons.refresh_rounded),
+                label: const Text('Retry'),
+              ),
+            ],
+          ),
+        ),
+      );
 
   @override
   Widget build(BuildContext context) {
@@ -87,6 +115,7 @@ class _GroupMediaScreenState extends State<GroupMediaScreen>
     if (_loading.contains('media') && rows.isEmpty) {
       return const Center(child: CircularProgressIndicator());
     }
+    if (_errors.containsKey('media') && rows.isEmpty) return _errorState('media');
     if (rows.isEmpty) return const _EmptyState(label: 'No media shared yet');
     final provider = context.read<ChatProvider>();
     final profileId = provider.currentProfileId ?? 0;
@@ -149,6 +178,7 @@ class _GroupMediaScreenState extends State<GroupMediaScreen>
     if (_loading.contains('documents') && rows.isEmpty) {
       return const Center(child: CircularProgressIndicator());
     }
+    if (_errors.containsKey('documents') && rows.isEmpty) return _errorState('documents');
     if (rows.isEmpty) return const _EmptyState(label: 'No documents shared yet');
     final provider = context.watch<ChatProvider>();
     final profileId = provider.currentProfileId ?? 0;
@@ -166,9 +196,7 @@ class _GroupMediaScreenState extends State<GroupMediaScreen>
             overflow: TextOverflow.ellipsis,
           ),
           subtitle: Text(message.sender.name),
-          trailing: Icon(
-            saved ? Icons.open_in_new_rounded : Icons.download_rounded,
-          ),
+          trailing: Icon(saved ? Icons.open_in_new_rounded : Icons.download_rounded),
           onTap: () async {
             try {
               await provider.openMessageAttachment(message);
@@ -191,6 +219,7 @@ class _GroupMediaScreenState extends State<GroupMediaScreen>
     if (_loading.contains('links') && rows.isEmpty) {
       return const Center(child: CircularProgressIndicator());
     }
+    if (_errors.containsKey('links') && rows.isEmpty) return _errorState('links');
     final links = <_SharedLink>[];
     for (final row in rows) {
       final body = '${row['body'] ?? ''}';
@@ -212,8 +241,7 @@ class _GroupMediaScreenState extends State<GroupMediaScreen>
           title: Text(link.url, maxLines: 2, overflow: TextOverflow.ellipsis),
           subtitle: Text(link.sender),
           onTap: () async {
-            final normalized =
-                link.url.startsWith('www.') ? 'https://${link.url}' : link.url;
+            final normalized = link.url.startsWith('www.') ? 'https://${link.url}' : link.url;
             final uri = Uri.tryParse(normalized);
             if (uri != null) {
               await launchUrl(uri, mode: LaunchMode.externalApplication);

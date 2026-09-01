@@ -18,6 +18,7 @@ import 'providers/notification_provider.dart';
 import 'providers/task_provider.dart';
 import 'providers/theme_provider.dart';
 import 'providers/workspace_provider.dart';
+import 'providers/chat_provider.dart';
 import 'screens/complete_phone_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/shell_screen.dart';
@@ -176,7 +177,9 @@ class TasklyApp extends StatelessWidget {
       providers: [
         ChangeNotifierProvider(create: (_) => AuthProvider(backend)..initialise()),
         ChangeNotifierProvider(create: (_) => WorkspaceProvider(backend)),
-        ChangeNotifierProvider(create: (_) => CacheFirstChatProvider(backend, localMediaService)),
+        ChangeNotifierProvider<ChatProvider>(
+          create: (_) => CacheFirstChatProvider(backend, localMediaService),
+        ),
         ChangeNotifierProvider(create: (_) => TaskProvider(backend, reminderService, localMediaService)),
         ChangeNotifierProvider(create: (_) => DashboardProvider(backend)),
         ChangeNotifierProvider(create: (_) => ContactProvider(backend)),

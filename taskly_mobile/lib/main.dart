@@ -118,7 +118,7 @@ ThemeData _tasklyDarkTheme() {
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   try {
-    AppConfig.validate();
+    await AppConfig.load();
     await Supabase.initialize(
       url: AppConfig.supabaseUrl,
       publishableKey: AppConfig.supabasePublishableKey,

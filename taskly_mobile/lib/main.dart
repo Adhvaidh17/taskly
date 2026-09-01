@@ -25,6 +25,96 @@ import 'v62/ai_onboarding_screen_v62.dart';
 import 'services/incoming_share_service.dart';
 import 'services/local_media_service.dart';
 
+ThemeData _tasklyLightTheme() {
+  final base = AppTheme.light();
+  return base.copyWith(
+    scaffoldBackgroundColor: const Color(0xFFF7F6FC),
+    canvasColor: const Color(0xFFF7F6FC),
+    appBarTheme: base.appBarTheme.copyWith(
+      backgroundColor: Colors.transparent,
+      surfaceTintColor: Colors.transparent,
+    ),
+    cardTheme: CardThemeData(
+      color: Colors.white.withValues(alpha: .72),
+      surfaceTintColor: Colors.transparent,
+      elevation: 0,
+      margin: EdgeInsets.zero,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(26),
+        side: BorderSide(color: const Color(0xFF8B83A6).withValues(alpha: .18)),
+      ),
+    ),
+    inputDecorationTheme: base.inputDecorationTheme.copyWith(
+      fillColor: Colors.white.withValues(alpha: .58),
+      filled: true,
+    ),
+    bottomSheetTheme: base.bottomSheetTheme.copyWith(
+      backgroundColor: Colors.transparent,
+      modalBackgroundColor: Colors.transparent,
+    ),
+  );
+}
+
+ThemeData _tasklyDarkTheme() {
+  final base = AppTheme.dark();
+  return base.copyWith(
+    scaffoldBackgroundColor: const Color(0xFF050509),
+    canvasColor: const Color(0xFF050509),
+    appBarTheme: base.appBarTheme.copyWith(
+      backgroundColor: Colors.transparent,
+      surfaceTintColor: Colors.transparent,
+      elevation: 0,
+      scrolledUnderElevation: 0,
+    ),
+    cardTheme: CardThemeData(
+      color: const Color(0xFF17151F).withValues(alpha: .74),
+      surfaceTintColor: Colors.transparent,
+      elevation: 0,
+      margin: EdgeInsets.zero,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(26),
+        side: BorderSide(color: const Color(0xFFC9B9FF).withValues(alpha: .16)),
+      ),
+    ),
+    inputDecorationTheme: base.inputDecorationTheme.copyWith(
+      fillColor: Colors.white.withValues(alpha: .055),
+      filled: true,
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(20),
+        borderSide: BorderSide(color: Colors.white.withValues(alpha: .12)),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(20),
+        borderSide: BorderSide(color: Colors.white.withValues(alpha: .12)),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(20),
+        borderSide: const BorderSide(color: Color(0xFF9B63FF), width: 1.4),
+      ),
+    ),
+    dialogTheme: base.dialogTheme.copyWith(
+      backgroundColor: const Color(0xFF15131D).withValues(alpha: .96),
+      surfaceTintColor: Colors.transparent,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(28),
+        side: BorderSide(color: Colors.white.withValues(alpha: .12)),
+      ),
+    ),
+    bottomSheetTheme: base.bottomSheetTheme.copyWith(
+      backgroundColor: Colors.transparent,
+      modalBackgroundColor: const Color(0xFF111019).withValues(alpha: .96),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
+      ),
+    ),
+    navigationBarTheme: base.navigationBarTheme.copyWith(
+      backgroundColor: const Color(0xFF08070C).withValues(alpha: .92),
+      indicatorColor: const Color(0xFF8B63FF).withValues(alpha: .28),
+      elevation: 0,
+    ),
+  );
+}
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   try {
@@ -86,12 +176,8 @@ class TasklyApp extends StatelessWidget {
       providers: [
         ChangeNotifierProvider(create: (_) => AuthProvider(backend)..initialise()),
         ChangeNotifierProvider(create: (_) => WorkspaceProvider(backend)),
-        ChangeNotifierProvider(
-          create: (_) => CacheFirstChatProvider(backend, localMediaService),
-        ),
-        ChangeNotifierProvider(
-          create: (_) => TaskProvider(backend, reminderService, localMediaService),
-        ),
+        ChangeNotifierProvider(create: (_) => CacheFirstChatProvider(backend, localMediaService)),
+        ChangeNotifierProvider(create: (_) => TaskProvider(backend, reminderService, localMediaService)),
         ChangeNotifierProvider(create: (_) => DashboardProvider(backend)),
         ChangeNotifierProvider(create: (_) => ContactProvider(backend)),
         ChangeNotifierProvider(create: (_) => NotificationProvider(backend)),
@@ -103,8 +189,8 @@ class TasklyApp extends StatelessWidget {
         builder: (context, theme, _) => MaterialApp(
           debugShowCheckedModeBanner: false,
           title: 'Taskly',
-          theme: AppTheme.light(),
-          darkTheme: AppTheme.dark(),
+          theme: _tasklyLightTheme(),
+          darkTheme: _tasklyDarkTheme(),
           themeMode: theme.mode,
           home: const AuthGate(),
         ),
@@ -115,7 +201,6 @@ class TasklyApp extends StatelessWidget {
 
 class AuthGate extends StatefulWidget {
   const AuthGate({super.key});
-
   @override
   State<AuthGate> createState() => _AuthGateState();
 }
@@ -144,16 +229,12 @@ class _AuthGateState extends State<AuthGate> {
         if (auth.isAuthenticated && auth.user != null && !_pushBound) {
           _pushBound = true;
           WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (mounted) {
-              context.read<PushNotificationService>().bindSignedInUser(auth.backend);
-            }
+            if (mounted) context.read<PushNotificationService>().bindSignedInUser(auth.backend);
           });
         } else if (!auth.isAuthenticated) {
           _pushBound = false;
         }
-        if (auth.initialising) {
-          return const Scaffold(body: Center(child: CircularProgressIndicator()));
-        }
+        if (auth.initialising) return const Scaffold(body: Center(child: CircularProgressIndicator()));
         if (!auth.isAuthenticated) return const LoginScreen();
         if (auth.user == null) {
           return Scaffold(
@@ -201,8 +282,8 @@ class TasklyStartupErrorApp extends StatelessWidget {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'Taskly',
-      theme: AppTheme.light(),
-      darkTheme: AppTheme.dark(),
+      theme: _tasklyLightTheme(),
+      darkTheme: _tasklyDarkTheme(),
       themeMode: ThemeMode.system,
       home: Builder(
         builder: (context) => Scaffold(

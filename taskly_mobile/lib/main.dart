@@ -11,7 +11,7 @@ import 'core/notifications/task_reminder_service.dart';
 import 'core/supabase/taskly_supabase.dart';
 import 'core/theme/app_theme.dart';
 import 'providers/auth_provider.dart';
-import 'providers/chat_provider.dart';
+import 'providers/cache_first_chat_provider.dart';
 import 'providers/contact_provider.dart';
 import 'providers/dashboard_provider.dart';
 import 'providers/notification_provider.dart';
@@ -36,9 +36,7 @@ Future<void> main() async {
     final reminderService = TaskReminderService();
     try {
       await reminderService.initialise();
-    } catch (_) {
-      // Reminders must never stop Taskly from starting.
-    }
+    } catch (_) {}
     final backend = TasklySupabase(Supabase.instance.client);
     final themeProvider = ThemeProvider();
     final pushService = PushNotificationService();
@@ -48,7 +46,6 @@ Future<void> main() async {
       themeProvider.initialise(),
       incomingShareService.initialise(),
     ]);
-    // Push/Firebase setup runs after first paint so it never slows app launch.
     unawaited(pushService.initialise());
     runApp(
       TasklyApp(
@@ -90,7 +87,7 @@ class TasklyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => AuthProvider(backend)..initialise()),
         ChangeNotifierProvider(create: (_) => WorkspaceProvider(backend)),
         ChangeNotifierProvider(
-          create: (_) => ChatProvider(backend, localMediaService),
+          create: (_) => CacheFirstChatProvider(backend, localMediaService),
         ),
         ChangeNotifierProvider(
           create: (_) => TaskProvider(backend, reminderService, localMediaService),
@@ -168,19 +165,10 @@ class _AuthGateState extends State<AuthGate> {
                   children: [
                     const Icon(Icons.person_off_outlined, size: 48),
                     const SizedBox(height: 12),
-                    Text(
-                      auth.error ?? 'Your Taskly profile could not be loaded.',
-                      textAlign: TextAlign.center,
-                    ),
+                    Text(auth.error ?? 'Your Taskly profile could not be loaded.', textAlign: TextAlign.center),
                     const SizedBox(height: 14),
-                    FilledButton(
-                      onPressed: auth.refreshProfile,
-                      child: const Text('Retry'),
-                    ),
-                    TextButton(
-                      onPressed: auth.logout,
-                      child: const Text('Sign out'),
-                    ),
+                    FilledButton(onPressed: auth.refreshProfile, child: const Text('Retry')),
+                    TextButton(onPressed: auth.logout, child: const Text('Sign out')),
                   ],
                 ),
               ),
@@ -206,7 +194,6 @@ class _AuthGateState extends State<AuthGate> {
 
 class TasklyStartupErrorApp extends StatelessWidget {
   const TasklyStartupErrorApp({super.key, required this.message});
-
   final String message;
 
   @override
@@ -229,23 +216,11 @@ class TasklyStartupErrorApp extends StatelessWidget {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(
-                          Icons.error_outline,
-                          size: 52,
-                          color: context.taskly.danger,
-                        ),
+                        Icon(Icons.error_outline, size: 52, color: context.taskly.danger),
                         const SizedBox(height: 16),
-                        Text(
-                          'Taskly could not start',
-                          textAlign: TextAlign.center,
-                          style: Theme.of(context).textTheme.titleLarge,
-                        ),
+                        Text('Taskly could not start', textAlign: TextAlign.center, style: Theme.of(context).textTheme.titleLarge),
                         const SizedBox(height: 12),
-                        Text(
-                          message,
-                          textAlign: TextAlign.center,
-                          style: TextStyle(color: context.taskly.textMuted),
-                        ),
+                        Text(message, textAlign: TextAlign.center, style: TextStyle(color: context.taskly.textMuted)),
                       ],
                     ),
                   ),

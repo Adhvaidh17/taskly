@@ -9,8 +9,7 @@ import '../core/supabase/taskly_supabase.dart';
 import 'chat_provider.dart';
 
 class CacheFirstChatProvider extends ChatProvider {
-  CacheFirstChatProvider(TasklySupabase backend, LocalMediaService media)
-      : super(backend, media);
+  CacheFirstChatProvider(super.backend, super.media);
 
   final ChatCacheService _recoveryCache = ChatCacheService();
 

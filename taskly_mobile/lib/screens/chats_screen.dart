@@ -5,7 +5,7 @@ import 'package:provider/provider.dart';
 import '../models/channel.dart';
 import '../providers/chat_provider.dart';
 import '../providers/workspace_provider.dart';
-import '../services/chat_cache_service.dart';
+import '../services/recovered_chat_cache_service.dart';
 import '../v62/ai_chat_list_shell_v62.dart';
 import '../v62/new_chat_hub_v62.dart';
 import '../v62/taskly_ai_theme_v62.dart';
@@ -19,7 +19,7 @@ class ChatsScreen extends StatefulWidget {
 }
 
 class _ChatsScreenState extends State<ChatsScreen> with AutomaticKeepAliveClientMixin {
-  final ChatCacheService _cache = ChatCacheService();
+  final RecoveredChatCacheService _cache = RecoveredChatCacheService();
   List<ConversationItem> _cachedConversations = const [];
   bool _cacheLoaded = false;
 

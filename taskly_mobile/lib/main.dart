@@ -51,7 +51,10 @@ ThemeData _tasklyLightTheme() {
     ),
     bottomSheetTheme: base.bottomSheetTheme.copyWith(
       backgroundColor: Colors.transparent,
-      modalBackgroundColor: Colors.transparent,
+      modalBackgroundColor: const Color(0xFFFDFDFF).withValues(alpha: .97),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
+      ),
     ),
   );
 }
@@ -195,6 +198,10 @@ class TasklyApp extends StatelessWidget {
           theme: _tasklyLightTheme(),
           darkTheme: _tasklyDarkTheme(),
           themeMode: theme.mode,
+          builder: (context, child) => Material(
+            type: MaterialType.transparency,
+            child: child ?? const SizedBox.shrink(),
+          ),
           home: const AuthGate(),
         ),
       ),

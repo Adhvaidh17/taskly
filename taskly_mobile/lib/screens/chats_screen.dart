@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
+import '../local_chat/local_chat_database.dart';
 import '../models/channel.dart';
 import '../providers/chat_provider.dart';
 import '../providers/workspace_provider.dart';
@@ -21,6 +22,7 @@ class ChatsScreen extends StatefulWidget {
 class _ChatsScreenState extends State<ChatsScreen> with AutomaticKeepAliveClientMixin {
   final RecoveredChatCacheService _cache = RecoveredChatCacheService();
   List<ConversationItem> _cachedConversations = const [];
+  final Map<int, _LatestLocalMessage> _latestLocalMessages = {};
   bool _cacheLoaded = false;
 
   @override
@@ -36,6 +38,7 @@ class _ChatsScreenState extends State<ChatsScreen> with AutomaticKeepAliveClient
     if (!mounted) return;
     try {
       final cached = await _cache.readConversations();
+      await _loadLatestLocalMessages();
       if (!mounted) return;
       setState(() {
         _cachedConversations = cached;
@@ -44,6 +47,51 @@ class _ChatsScreenState extends State<ChatsScreen> with AutomaticKeepAliveClient
     } catch (_) {
       if (mounted) setState(() => _cacheLoaded = true);
     }
+  }
+
+  Future<void> _loadLatestLocalMessages() async {
+    try {
+      final db = LocalChatDatabase.instance;
+      final rows = await db.db.rawQuery('''
+        SELECT m.channel_id, m.body, m.sender_name, m.created_at,
+               m.attachment_name, m.attachment_mime_type
+        FROM local_messages m
+        INNER JOIN (
+          SELECT channel_id, MAX(created_at) AS latest_at
+          FROM local_messages
+          GROUP BY channel_id
+        ) latest
+          ON latest.channel_id = m.channel_id
+         AND latest.latest_at = m.created_at
+        ORDER BY m.created_at DESC, m.id DESC
+      ''');
+      _latestLocalMessages
+        ..clear()
+        ..addEntries(rows.map((row) {
+          final channelId = (row['channel_id'] as num).toInt();
+          return MapEntry(
+            channelId,
+            _LatestLocalMessage(
+              body: row['body'] as String? ?? '',
+              senderName: row['sender_name'] as String? ?? '',
+              createdAt: DateTime.tryParse('${row['created_at'] ?? ''}'),
+              attachmentName: row['attachment_name'] as String?,
+              attachmentMimeType: row['attachment_mime_type'] as String?,
+            ),
+          );
+        }));
+    } catch (_) {
+      // Local chat may not be initialized yet. Provider/cache data remains usable.
+    }
+  }
+
+  String _preview(_LatestLocalMessage latest) {
+    if (latest.body.trim().isNotEmpty) return latest.body;
+    final mime = latest.attachmentMimeType;
+    if (mime?.startsWith('image/') == true) return 'Photo';
+    if (mime?.startsWith('video/') == true) return 'Video';
+    if (mime?.startsWith('audio/') == true) return 'Audio';
+    return latest.attachmentName ?? '';
   }
 
   List<ConversationItem> _mergeItems(List<ConversationItem> serverOrLocal) {
@@ -66,14 +114,29 @@ class _ChatsScreenState extends State<ChatsScreen> with AutomaticKeepAliveClient
         );
       }
     }
-    final result = byChannel.values.toList();
+
+    final result = byChannel.values.map((item) {
+      final latest = _latestLocalMessages[item.channelId];
+      if (latest == null || latest.createdAt == null) return item;
+      return item.copyWith(
+        lastMessage: _preview(latest),
+        lastSenderName: latest.senderName,
+        lastMessageAt: latest.createdAt,
+      );
+    }).toList();
+
+    // WhatsApp-style ordering: the conversation containing the newest
+    // sent or received message is always first. Opening a chat never
+    // changes this order; only an actual new message does.
     result.sort((a, b) {
       final at = a.lastMessageAt;
       final bt = b.lastMessageAt;
       if (at == null && bt == null) return a.name.compareTo(b.name);
       if (at == null) return 1;
       if (bt == null) return -1;
-      return bt.compareTo(at);
+      final byTime = bt.compareTo(at);
+      if (byTime != 0) return byTime;
+      return a.name.compareTo(b.name);
     });
     return result;
   }
@@ -268,6 +331,22 @@ class _ChatsScreenState extends State<ChatsScreen> with AutomaticKeepAliveClient
     await context.read<WorkspaceProvider>().joinGroup(code.text.trim());
     if (context.mounted) await context.read<ChatProvider>().loadConversations();
   }
+}
+
+class _LatestLocalMessage {
+  const _LatestLocalMessage({
+    required this.body,
+    required this.senderName,
+    required this.createdAt,
+    required this.attachmentName,
+    required this.attachmentMimeType,
+  });
+
+  final String body;
+  final String senderName;
+  final DateTime? createdAt;
+  final String? attachmentName;
+  final String? attachmentMimeType;
 }
 
 class _GlassIconButton extends StatelessWidget {

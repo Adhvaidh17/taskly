@@ -1,7 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
-import 'package:supabase_flutter/supabase.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'device_crypto_service.dart';
 import 'local_attachment_store.dart';

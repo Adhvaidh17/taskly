@@ -3,15 +3,14 @@ import 'package:flutter/foundation.dart';
 import '../models/channel.dart';
 import '../models/message.dart';
 import '../models/user.dart';
-import '../services/chat_cache_service.dart';
+import '../services/recovered_chat_cache_service.dart';
 import '../services/local_media_service.dart';
-import '../core/supabase/taskly_supabase.dart';
 import 'chat_provider.dart';
 
 class CacheFirstChatProvider extends ChatProvider {
   CacheFirstChatProvider(super.backend, super.media);
 
-  final ChatCacheService _recoveryCache = ChatCacheService();
+  final RecoveredChatCacheService _recoveryCache = RecoveredChatCacheService();
 
   Future<List<ConversationItem>> _cachedConversations() async {
     try {

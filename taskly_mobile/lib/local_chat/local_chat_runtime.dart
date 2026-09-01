@@ -3,7 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'device_crypto_service.dart';
 import 'local_attachment_store.dart';
-import 'local_chat_database.dart';
+import 'local_chat_database_v64.dart';
 import 'local_chat_transport.dart';
 
 class LocalChatRuntime {
@@ -11,7 +11,7 @@ class LocalChatRuntime {
 
   static final LocalChatRuntime instance = LocalChatRuntime._();
 
-  LocalChatDatabase get database => LocalChatDatabase.instance;
+  LocalChatDatabaseV64 get database => LocalChatDatabaseV64.instance;
   LocalChatTransport? transport;
   LocalAttachmentStore? attachments;
   DeviceCryptoService? crypto;
@@ -26,27 +26,15 @@ class LocalChatRuntime {
   Future<void> initialize(SupabaseClient client) async {
     final user = client.auth.currentUser;
     if (user == null) return;
-
     if (_authUserId != user.id) {
       await disposeTransportOnly();
       _authUserId = user.id;
     }
-
-    // Local storage is the primary chat source and must never depend on the
-    // live transport being available.
     await database.openForUser(user.id);
     attachments ??= LocalAttachmentStore(user.id);
     crypto ??= DeviceCryptoService();
-
     if (transport != null) return;
-
-    final nextTransport = LocalChatTransport(
-      client: client,
-      database: database,
-      crypto: crypto!,
-      attachments: attachments!,
-    );
-
+    final nextTransport = LocalChatTransport(client: client, database: database, crypto: crypto!, attachments: attachments!);
     try {
       await nextTransport.initialize();
       transport = nextTransport;
@@ -54,46 +42,34 @@ class LocalChatRuntime {
     } catch (error) {
       _lastTransportError = '$error';
       debugPrint('TASKLY_LOCAL_TRANSPORT_INIT $error');
-      try {
-        await nextTransport.dispose();
-      } catch (_) {}
+      try { await nextTransport.dispose(); } catch (_) {}
       transport = null;
-      // Keep SQLite/cache fully usable. Live delivery can retry later.
     }
   }
 
   Future<bool> ensureTransport(SupabaseClient client) async {
     await initialize(client);
-    if (transport != null) return true;
-    return false;
+    return transport != null;
   }
 
   Future<bool> needsRestoreGate(SupabaseClient client) async {
     final user = client.auth.currentUser;
     if (user == null) return false;
-
     _authUserId = user.id;
     await database.openForUser(user.id);
     attachments ??= LocalAttachmentStore(user.id);
     crypto ??= DeviceCryptoService();
-
     final skipped = await database.getSetting('restore_gate_skipped');
     if (skipped == '1') return false;
     return !(await database.hasAnyMessages());
   }
 
-  Future<void> skipRestoreGate() async {
-    await database.putSetting('restore_gate_skipped', '1');
-  }
+  Future<void> skipRestoreGate() async => database.putSetting('restore_gate_skipped', '1');
 
   Future<void> disposeTransportOnly() async {
     final current = transport;
     transport = null;
-    if (current != null) {
-      try {
-        await current.dispose();
-      } catch (_) {}
-    }
+    if (current != null) { try { await current.dispose(); } catch (_) {} }
   }
 
   Future<void> signOutCleanup() async {

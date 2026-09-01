@@ -66,10 +66,14 @@ class RecoveredChatCacheService extends ChatCacheService {
   @override
   Future<List<Map<String, dynamic>>> readMessages(int channelId) async {
     final merged = <String, Map<String, dynamic>>{};
-    for (final row in await super.readMessages(channelId)) merged[_key(row)] = row;
+    for (final row in await super.readMessages(channelId)) {
+      merged[_key(row)] = row;
+    }
     final marker = '_channel_${channelId}_messages_v43.json';
     for (final asset in _assets.where((p) => p.contains(marker))) {
-      for (final row in await _rows(asset)) merged[_key(row)] = row;
+      for (final row in await _rows(asset)) {
+        merged[_key(row)] = row;
+      }
     }
     final result = merged.values.toList()
       ..sort((a, b) => _date(a['created_at']).compareTo(_date(b['created_at'])));

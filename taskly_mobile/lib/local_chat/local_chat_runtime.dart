@@ -17,18 +17,28 @@ class LocalChatRuntime {
   DeviceCryptoService? crypto;
 
   String? _authUserId;
+  String? _lastTransportError;
+
+  bool get isLocalReady => _authUserId != null;
+  bool get transportReady => transport != null;
+  String? get lastTransportError => _lastTransportError;
 
   Future<void> initialize(SupabaseClient client) async {
     final user = client.auth.currentUser;
     if (user == null) return;
-    if (_authUserId == user.id && transport != null) return;
 
-    await disposeTransportOnly();
+    if (_authUserId != user.id) {
+      await disposeTransportOnly();
+      _authUserId = user.id;
+    }
 
-    _authUserId = user.id;
+    // Local storage is the primary chat source and must never depend on the
+    // live transport being available.
     await database.openForUser(user.id);
-    attachments = LocalAttachmentStore(user.id);
-    crypto = DeviceCryptoService();
+    attachments ??= LocalAttachmentStore(user.id);
+    crypto ??= DeviceCryptoService();
+
+    if (transport != null) return;
 
     final nextTransport = LocalChatTransport(
       client: client,
@@ -40,13 +50,22 @@ class LocalChatRuntime {
     try {
       await nextTransport.initialize();
       transport = nextTransport;
+      _lastTransportError = null;
     } catch (error) {
+      _lastTransportError = '$error';
       debugPrint('TASKLY_LOCAL_TRANSPORT_INIT $error');
       try {
         await nextTransport.dispose();
       } catch (_) {}
       transport = null;
+      // Keep SQLite/cache fully usable. Live delivery can retry later.
     }
+  }
+
+  Future<bool> ensureTransport(SupabaseClient client) async {
+    await initialize(client);
+    if (transport != null) return true;
+    return false;
   }
 
   Future<bool> needsRestoreGate(SupabaseClient client) async {
@@ -70,7 +89,11 @@ class LocalChatRuntime {
   Future<void> disposeTransportOnly() async {
     final current = transport;
     transport = null;
-    if (current != null) await current.dispose();
+    if (current != null) {
+      try {
+        await current.dispose();
+      } catch (_) {}
+    }
   }
 
   Future<void> signOutCleanup() async {
@@ -79,5 +102,6 @@ class LocalChatRuntime {
     attachments = null;
     crypto = null;
     _authUserId = null;
+    _lastTransportError = null;
   }
 }

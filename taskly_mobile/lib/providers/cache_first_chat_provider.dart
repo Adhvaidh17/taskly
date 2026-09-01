@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/foundation.dart';
 
 import '../models/channel.dart';
@@ -10,11 +8,6 @@ import '../services/local_media_service.dart';
 import '../core/supabase/taskly_supabase.dart';
 import 'chat_provider.dart';
 
-/// Cache-first chat provider.
-///
-/// The recovered v43 cache is the first source rendered to the UI. The normal
-/// local transport/server path still runs afterwards so newly-created messages
-/// and conversations can continue to update the same in-memory view.
 class CacheFirstChatProvider extends ChatProvider {
   CacheFirstChatProvider(TasklySupabase backend, LocalMediaService media)
       : super(backend, media);
@@ -30,10 +23,7 @@ class CacheFirstChatProvider extends ChatProvider {
     }
   }
 
-  Future<List<MessageItem>> _cachedMessages(
-    int channelId,
-    int profileId,
-  ) async {
+  Future<List<MessageItem>> _cachedMessages(int channelId, int profileId) async {
     try {
       final rows = await _recoveryCache.readMessages(channelId);
       return rows
@@ -66,7 +56,6 @@ class CacheFirstChatProvider extends ChatProvider {
       conversations = cached;
       notifyListeners();
     }
-
     try {
       await super.loadConversations();
       if (conversations.isEmpty && cached.isNotEmpty) {
@@ -147,10 +136,6 @@ class CacheFirstChatProvider extends ChatProvider {
       _mergeCachedMembers(conversation.channelId, merged);
       loadingMessages = false;
       notifyListeners();
-      unawaited(_recoveryCache.writeMessages(
-        conversation.channelId,
-        merged.map((item) => item.toJson()).toList(),
-      ));
     }
   }
 }

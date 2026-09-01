@@ -32,6 +32,8 @@ class LocalChatRuntime {
       _authUserId = user.id;
     }
 
+    // Local storage is the primary chat source and must never depend on the
+    // live transport being available.
     await database.openForUser(user.id);
     attachments ??= LocalAttachmentStore(user.id);
     crypto ??= DeviceCryptoService();
@@ -56,12 +58,14 @@ class LocalChatRuntime {
         await nextTransport.dispose();
       } catch (_) {}
       transport = null;
+      // Keep SQLite/cache fully usable. Live delivery can retry later.
     }
   }
 
   Future<bool> ensureTransport(SupabaseClient client) async {
     await initialize(client);
-    return transport != null;
+    if (transport != null) return true;
+    return false;
   }
 
   Future<bool> needsRestoreGate(SupabaseClient client) async {
